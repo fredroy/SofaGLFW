@@ -49,13 +49,13 @@ add_library(${PROJECT_NAME} SHARED ${HEADER_FILES} ${SOURCE_FILES})
 
 configure_file(${SOFAGLFW_SOURCE_DIR}/config.h.in ${CMAKE_BINARY_DIR}/include/${PROJECT_NAME}/config.h)
 
-if(Sofa.Components.GUI.Core_FOUND)
-    target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.Components.GUI.Core)
-endif()
-
 target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.GL SofaSimulationGraph)
 target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.Components.Visual_minimal)
 target_link_libraries(${PROJECT_NAME} PRIVATE glfw)
+
+if(Sofa.Components.GUI.Core_FOUND)
+    target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.Components.GUI.Core)
+endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE SOFA_BUILD_SOFAGLFW)
 target_include_directories(${PROJECT_NAME} PUBLIC "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>")

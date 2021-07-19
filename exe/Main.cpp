@@ -33,6 +33,8 @@
 #include <sofa/simulation/Node.h>
 #include <sofa/core/visual/VisualParams.h>
 
+#include <sofa/components/utils/config.h>
+
 int main(int argc, char** argv)
 {
     sofa::helper::BackTrace::autodump();
@@ -50,6 +52,7 @@ int main(int argc, char** argv)
     auto result = options.parse(argc, argv);
 
     sofa::simulation::graph::init();
+    sofa::components::utils::init();
 
     // create an instance of SofaGLFWGUI
     // linked with the simulation
