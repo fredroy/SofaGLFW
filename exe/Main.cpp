@@ -33,13 +33,9 @@
 #include <sofa/simulation/Node.h>
 #include <sofa/core/visual/VisualParams.h>
 
-#include <SofaBase/initSofaBase.h>
-
 int main(int argc, char** argv)
 {
     sofa::helper::BackTrace::autodump();
-
-    sofa::component::initSofaBase();
 
     std::string fileName ;
     bool        startAnim = false;
@@ -54,7 +50,6 @@ int main(int argc, char** argv)
     auto result = options.parse(argc, argv);
 
     sofa::simulation::graph::init();
-    sofa::component::initSofaBase();
 
     // create an instance of SofaGLFWGUI
     // linked with the simulation

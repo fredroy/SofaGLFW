@@ -22,8 +22,11 @@
 #include <SofaGLFW/config.h>
 
 #include <sofa/simulation/Node.h>
-#include <sofa/gui/GUIManager.h>
+#if SOFAGLFW_HAVE_SOFA_COMPONENTS_GUI_CORE
 #include <SofaGLFW/SofaGLFWGUI.h>
+#include <sofa/gui/GUIManager.h>
+#endif
+
 
 namespace sofa::component
 {
@@ -43,8 +46,9 @@ void initExternalModule()
     if (first)
     {
         first = false;
-
+#if SOFAGLFW_HAVE_SOFA_COMPONENTS_GUI_CORE
         sofa::gui::GUIManager::RegisterGUI("glfw", &sofa::glfw::SofaGLFWGUI::CreateGUI);
+#endif
     }
 }
 
