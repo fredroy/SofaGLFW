@@ -41,6 +41,11 @@ public:
     void afterDraw() override {}
     void terminate() override;
     bool dispatchMouseEvents() override;
+private:
+    GLFWwindow* m_window{ nullptr };
+    double m_startTime{ 0.0 };
+    double m_currentTime{ 0.0 };
+    std::size_t m_nbFrames{ 0 };
 };
 
 } // namespace sofaglfw
