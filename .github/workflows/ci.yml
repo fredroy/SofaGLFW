@@ -37,7 +37,7 @@ jobs:
 
       - name: Setup SOFA and environment
         id: sofa
-        uses: sofa-framework/sofa-setup-action@v4
+        uses: fredroy/sofa-setup-action@v4_upgrade_pybind
         with:
           sofa_root: ${{ github.workspace }}/sofa
           sofa_version: ${{ matrix.sofa_branch }}
@@ -182,7 +182,7 @@ jobs:
             
       - name: Setup SOFA and environment
         id: sofa
-        uses: sofa-framework/sofa-setup-action@v4
+        uses: fredroy/sofa-setup-action@v4_upgrade_pybind
         with:
           sofa_root: ${{ github.workspace }}/sofa
           sofa_version: ${{ matrix.sofa_branch }}
