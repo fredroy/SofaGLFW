@@ -44,6 +44,8 @@
 #include <sofa/core/objectmodel/KeypressedEvent.h>
 #include <sofa/core/objectmodel/KeyreleasedEvent.h>
 
+#define BX_PLATFORM_WINDOWS 1
+
 using namespace sofa;
 
 namespace sofaglfw
