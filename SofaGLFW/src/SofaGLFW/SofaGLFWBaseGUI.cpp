@@ -52,6 +52,8 @@
 #include <sofa/gui/common/BaseGUI.h>
 #include <sofa/gui/common/PickHandler.h>
 
+#define BX_PLATFORM_WINDOWS 1
+
 using namespace sofa;
 using namespace sofa::gui::common;
 
