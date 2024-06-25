@@ -32,7 +32,6 @@
 #include <sofa/core/objectmodel/MouseEvent.h>
 #include <sofa/simulation/Simulation.h>
 #include <sofa/simulation/Node.h>
-#include <sofa/gl/gl.h>
 
 using namespace sofa;
 
@@ -53,53 +52,70 @@ void SofaGLFWWindow::close()
 }
 
 
-void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams* vparams){
-    glClearColor(m_backgroundColor.r(), m_backgroundColor.g(), m_backgroundColor.b(), m_backgroundColor.a());
-    glClearDepth(1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams* vparams)
+{
+    // glClearColor(m_backgroundColor.r(), m_backgroundColor.g(), m_backgroundColor.b(), m_backgroundColor.a());
+    // glClearDepth(1.0);
+    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glEnable(GL_LIGHTING);
-    glEnable(GL_DEPTH_TEST);
-    glDisable(GL_COLOR_MATERIAL);
+    //glEnable(GL_LIGHTING);
+    //glEnable(GL_DEPTH_TEST);
+    //glDisable(GL_COLOR_MATERIAL);
 
-    // draw the scene
-    if (!m_currentCamera)
-    {
-        msg_error("SofaGLFWGUI") << "No camera defined.";
-        return;
-    }
+    //// draw the scene
+    //if (!m_currentCamera)
+    //{
+    //    msg_error("SofaGLFWGUI") << "No camera defined.";
+    //    return;
+    //}
 
-    if (groot->f_bbox.getValue().isValid())
-    {
-        vparams->sceneBBox() = groot->f_bbox.getValue();
-        m_currentCamera->setBoundingBox(vparams->sceneBBox().minBBox(), vparams->sceneBBox().maxBBox());
-    }
-    m_currentCamera->computeZ();
-    m_currentCamera->d_widthViewport.setValue(vparams->viewport()[2]);
-    m_currentCamera->d_heightViewport.setValue(vparams->viewport()[3]);
+    // if (groot->f_bbox.getValue().isValid())
+    // {
+    //     vparams->sceneBBox() = groot->f_bbox.getValue();
+    //     m_currentCamera->setBoundingBox(vparams->sceneBBox().minBBox(), vparams->sceneBBox().maxBBox());
+    // }
+    // m_currentCamera->computeZ();
+    // m_currentCamera->d_widthViewport.setValue(vparams->viewport()[2]);
+    // m_currentCamera->d_heightViewport.setValue(vparams->viewport()[3]);
 
-    // matrices
-    double lastModelviewMatrix [16];
-    double lastProjectionMatrix [16];
+    // // matrices
+    // double lastModelviewMatrix [16];
+    // double lastProjectionMatrix [16];
 
-    m_currentCamera->getOpenGLProjectionMatrix(lastProjectionMatrix);
-    m_currentCamera->getOpenGLModelViewMatrix(lastModelviewMatrix);
+    // m_currentCamera->getOpenGLProjectionMatrix(lastProjectionMatrix);
+    // m_currentCamera->getOpenGLModelViewMatrix(lastModelviewMatrix);
 
-    glViewport(0, 0, vparams->viewport()[2], vparams->viewport()[3]);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glMultMatrixd(lastProjectionMatrix);
+    // glViewport(0, 0, vparams->viewport()[2], vparams->viewport()[3]);
+    // glMatrixMode(GL_PROJECTION);
+    // glLoadIdentity();
+    // glMultMatrixd(lastProjectionMatrix);
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glMultMatrixd(lastModelviewMatrix);
+    // glMatrixMode(GL_MODELVIEW);
+    // glLoadIdentity();
+    // glMultMatrixd(lastModelviewMatrix);
 
-    // Update the visual params
-    vparams->zNear() = m_currentCamera->getZNear();
-    vparams->zFar() = m_currentCamera->getZFar();
-    vparams->setProjectionMatrix(lastProjectionMatrix);
-    vparams->setModelViewMatrix(lastModelviewMatrix);
-    simulation::node::draw(vparams, groot.get());
+    // // Update the visual params
+    // vparams->zNear() = m_currentCamera->getZNear();
+    // vparams->zFar() = m_currentCamera->getZFar();
+    // vparams->setProjectionMatrix(lastProjectionMatrix);
+    // vparams->setModelViewMatrix(lastModelviewMatrix);
+    // simulation::node::draw(vparams, groot.get());
+
+    // Set view 0 default viewport.
+    bgfx_set_view_rect(0, 0, 0, vparams->viewport()[2], vparams->viewport()[3]);
+
+    // This dummy draw call is here to make sure that view 0 is cleared
+    // if no other draw calls are submitted to view 0.
+    bgfx_encoder_t* encoder = bgfx_encoder_begin(true);
+    bgfx_encoder_touch(encoder, 0);
+    bgfx_encoder_end(encoder);
+
+    sofa::simulation::node::draw(vparams, groot.get());
+
+    // Advance to next frame. Rendering thread will be kicked to
+    // process submitted rendering primitives.
+    bgfx_frame(false);
+
 }
 
 void SofaGLFWWindow::setBackgroundColor(const RGBAColor& newColor)
