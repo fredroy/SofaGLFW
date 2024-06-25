@@ -40,6 +40,7 @@
 #    define GLFW_EXPOSE_NATIVE_WGL
 #endif //
 
+#include <GLFW/glfw3native.h>
 
 #include <SofaGLFW/SofaGLFWWindow.h>
 #include <SofaGLFW/config.h>
@@ -75,13 +76,7 @@
 #include <sofa/gui/common/BaseGUI.h>
 #include <sofa/gui/common/PickHandler.h>
 
-#if SOFAGLFW_HAVE_BGFXPLUGIN == 1
 #include <BGFXPlugin/DrawToolBGFX.h>
-#else
-#include <sofa/gl/DrawToolGL.h>
-#endif
-
-#define BX_PLATFORM_WINDOWS 1
 
 using namespace sofa;
 using namespace sofa::gui::common;
@@ -99,9 +94,6 @@ using namespace core::objectmodel;
 
 namespace sofaglfw
 {
-#include <GLFW/glfw3native.h>
-
-#include <bgfx/bgfx.h>
 
 static void* glfwNativeWindowHandle(GLFWwindow* _window)
     {
@@ -142,19 +134,6 @@ void* getNativeDisplayHandle()
 #    endif // BX_PLATFORM_*
 }
 
-//bgfx::NativeWindowHandleType::Enum getNativeWindowHandleType()
-//{
-//#    if BX_PLATFORM_LINUX
-//#        if ENTRY_CONFIG_USE_WAYLAND
-//    return bgfx::NativeWindowHandleType::Wayland;
-//#        else
-//    return bgfx::NativeWindowHandleType::Default;
-//#        endif // ENTRY_CONFIG_USE_WAYLAND
-//#    else
-//    return bgfx::NativeWindowHandleType::Default;
-//#    endif // BX_PLATFORM_*
-//}
-
 bgfx_native_window_handle_type getNativeWindowHandleType()
 {
 #    if BX_PLATFORM_LINUX
@@ -187,7 +166,7 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
 {
    // m_debug = BGFX_DEBUG_NONE;
     m_debug = BGFX_DEBUG_TEXT;
-    m_reset  = BGFX_RESET_VSYNC;
+    m_reset = BGFX_RESET_VSYNC;
 
     bgfx_init_t init;
     bgfx_init_ctor(&init);
@@ -238,8 +217,8 @@ bool SofaGLFWBaseGUI::init(int nbMSAASamples)
         // min = 0  (no MSAA Anti-aliasing)
         // max = 32 (MSAA with 32 samples)
 
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
-        //glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
         //glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         
         //glfwWindowHint(GLFW_SAMPLES, std::clamp(nbMSAASamples, 0, 32) );
@@ -598,8 +577,8 @@ void SofaGLFWBaseGUI::setWindowTitle(GLFWwindow* window, const char* title)
 
 void SofaGLFWBaseGUI::makeCurrentContext(GLFWwindow* glfwWindow)
 {
-    glfwMakeContextCurrent(glfwWindow);
-    glfwSwapInterval( 0 ); //request disabling vsync
+    //glfwMakeContextCurrent(glfwWindow);
+    //glfwSwapInterval( 0 ); //request disabling vsync
     if (!m_bGlewIsInitialized)
     {
         //glewInit();
