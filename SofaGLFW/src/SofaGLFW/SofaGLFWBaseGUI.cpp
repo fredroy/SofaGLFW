@@ -611,7 +611,7 @@ void SofaGLFWBaseGUI::makeCurrentContext(GLFWwindow* glfwWindow)
     glfwSwapInterval( 0 ); //request disabling vsync
     if (!m_bGlewIsInitialized)
     {
-        glewInit();
+        //glewInit();
         m_bGlewIsInitialized = true;
     }
 }
@@ -645,8 +645,8 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                 // while user did not request to close this window (i.e press escape), draw
                 if (!glfwWindowShouldClose(glfwWindow))
                 {
-                    makeCurrentContext(glfwWindow);
-                    
+                    //makeCurrentContext(glfwWindow);
+
                     m_guiEngine->beforeDraw(glfwWindow);
                     sofaGlfwWindow->draw(m_groot, m_vparams);
                     m_guiEngine->afterDraw();
@@ -654,7 +654,7 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     m_guiEngine->startFrame(this);
                     m_guiEngine->endFrame();
 
-                    glfwSwapBuffers(glfwWindow);
+                    // glfwSwapBuffers(glfwWindow);
 
 
                     m_viewPortHeight = m_vparams->viewport()[3];
