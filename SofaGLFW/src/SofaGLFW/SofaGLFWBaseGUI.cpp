@@ -624,7 +624,7 @@ void SofaGLFWBaseGUI::makeCurrentContext(GLFWwindow* glfwWindow)
     glfwSwapInterval( 0 ); //request disabling vsync
     if (!m_bGlewIsInitialized)
     {
-        glewInit();
+        //glewInit();
         m_bGlewIsInitialized = true;
     }
 }
@@ -661,8 +661,8 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                 // while user did not request to close this window (i.e press escape), draw
                 if (!glfwWindowShouldClose(glfwWindow) && !m_guiEngine->isTerminated())
                 {
-                    makeCurrentContext(glfwWindow);
-                    
+                    //makeCurrentContext(glfwWindow);
+
                     m_guiEngine->beforeDraw(glfwWindow);
                     sofaGlfwWindow->draw(this->groot, m_vparams);
 
@@ -683,7 +683,7 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                         m_videoRecorderFFMPEG.addFrame(pixels.data(), width, height);
                     }
 
-                    glfwSwapBuffers(glfwWindow);
+                    // glfwSwapBuffers(glfwWindow);
 
                 }
                 else
