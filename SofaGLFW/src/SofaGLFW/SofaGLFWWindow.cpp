@@ -36,6 +36,7 @@
 using namespace sofa;
 
 #include <bgfx/c99/bgfx.h>
+#include <bx/math.h>
 
 namespace sofaglfw
 {
@@ -54,13 +55,28 @@ void SofaGLFWWindow::close()
 
 void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams* vparams)
 {
-    // glClearColor(m_backgroundColor.r(), m_backgroundColor.g(), m_backgroundColor.b(), m_backgroundColor.a());
-    // glClearDepth(1.0);
-    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    std::size_t width = vparams->viewport()[2];
+    std::size_t height = vparams->viewport()[3];
 
-    //glEnable(GL_LIGHTING);
-    //glEnable(GL_DEPTH_TEST);
-    //glDisable(GL_COLOR_MATERIAL);
+    const bx::Vec3 at = { 0.0f, 0.0f,   0.0f };
+    const bx::Vec3 eye = { 0.0f, 0.0f, -35.0f };
+
+    // Set view and projection matrix for view 0.
+    {
+        float view[16];
+        bx::mtxLookAt(view, eye, at);
+
+        float proj[16];
+        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx_get_caps()->homogeneousDepth);
+        bgfx_set_view_transform(0, view, proj);
+
+        // Set view 0 default viewport.
+        bgfx_set_view_rect(0, 0, 0, uint16_t(width), uint16_t(height));
+    }
+
+    // This dummy draw call is here to make sure that view 0 is cleared
+    // if no other draw calls are submitted to view 0.
+    bgfx_touch(0);
 
     //// draw the scene
     //if (!m_currentCamera)
@@ -101,8 +117,6 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
     // vparams->setModelViewMatrix(lastModelviewMatrix);
     // simulation::node::draw(vparams, groot.get());
 
-    // Set view 0 default viewport.
-    bgfx_set_view_rect(0, 0, 0, vparams->viewport()[2], vparams->viewport()[3]);
 
     // This dummy draw call is here to make sure that view 0 is cleared
     // if no other draw calls are submitted to view 0.
