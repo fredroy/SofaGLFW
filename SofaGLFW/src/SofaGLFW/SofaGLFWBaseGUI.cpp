@@ -49,6 +49,14 @@
 #include <sofa/gui/common/BaseGUI.h>
 #include <sofa/gui/common/PickHandler.h>
 
+#if SOFAGLFW_HAVE_BGFXPLUGIN == 1
+#include <BGFXPlugin/DrawToolBGFX.h>
+#else
+#include <sofa/gl/DrawToolGL.h>
+#endif
+
+#include <sofa/gl/gl.h>
+
 #define BX_PLATFORM_WINDOWS 1
 
 using namespace sofa;
@@ -155,12 +163,13 @@ core::sptr<Node> SofaGLFWBaseGUI::getRootNode() const
 
 bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* glfwWindow)
 {
-    m_debug  = BGFX_DEBUG_NONE;
+   // m_debug = BGFX_DEBUG_NONE;
+    m_debug = BGFX_DEBUG_TEXT;
     m_reset  = BGFX_RESET_VSYNC;
 
     bgfx::Init init;
     init.type     = m_type; // bgfx::RendererType::Count ?
-    init.vendorId = m_pciId;
+    // init.vendorId = m_pciId;
     init.platformData.nwh  = glfwNativeWindowHandle(glfwWindow);
     init.platformData.ndt  = getNativeDisplayHandle();
     init.platformData.type = getNativeWindowHandleType();
@@ -179,7 +188,7 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
         , 1.0f
         , 0
         );
-    
+
     return res;
 }
 
@@ -207,8 +216,12 @@ bool SofaGLFWBaseGUI::init(int nbMSAASamples)
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         
         //glfwWindowHint(GLFW_SAMPLES, std::clamp(nbMSAASamples, 0, 32) );
-        
-        m_glDrawTool = new sofa::gl::DrawToolGL();
+
+#if SOFAGLFW_HAVE_BGFXPLUGIN == 1
+        m_drawTool = new bgfxplugin::DrawToolBGFX();
+#else
+        m_drawTool = new sofa::gl::DrawToolGL();
+#endif
 
         m_bGlfwIsInitialized = true;
         return true;
@@ -229,13 +242,14 @@ void SofaGLFWBaseGUI::setSimulation(NodeSPtr groot, const std::string& filename)
     m_groot = groot;
     m_filename = filename;
 
-    VisualParams::defaultInstance()->drawTool() = m_glDrawTool;
+    sofa::core::visual::VisualParams::defaultInstance()->drawTool() = m_drawTool;
 
     if (m_groot) {
         // Initialize the pick handler
         this->pick->init(m_groot.get());
         m_sofaGLFWMouseManager.setPickHandler(getPickHandler());
     }
+
 }
 
 void SofaGLFWBaseGUI::setSimulationIsRunning(bool running)
