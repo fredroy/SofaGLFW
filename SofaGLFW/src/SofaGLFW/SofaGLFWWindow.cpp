@@ -30,6 +30,8 @@
 #include <sofa/simulation/Node.h>
 #include <sofa/gl/gl.h>
 
+#include <bgfx/bgfx.h>
+
 
 namespace sofaglfw
 {
@@ -93,6 +95,7 @@ void SofaGLFWWindow::draw(sofa::simulation::NodeSPtr groot, sofa::core::visual::
     vparams->setProjectionMatrix(projectionMatrix);
     vparams->setModelViewMatrix(mvMatrix);
 
+    bgfx::touch(0);
     sofa::simulation::node::draw(vparams, groot.get());
 
 }

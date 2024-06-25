@@ -23,7 +23,6 @@
 #include <SofaGLFW/config.h>
 
 #include <sofa/simulation/Simulation.h>
-#include <sofa/gl/DrawToolGL.h>
 #include <sofa/component/visual/BaseCamera.h>
 #include <sofa/simulation/Node.h>
 
@@ -36,6 +35,11 @@
 
 struct GLFWwindow;
 struct GLFWmonitor;
+
+namespace sofa::helper::visual
+{
+    class DrawTool;
+}
 
 namespace sofaglfw
 {
@@ -133,7 +137,7 @@ private:
 
     sofa::simulation::NodeSPtr m_groot;
     std::string m_filename;
-    sofa::gl::DrawToolGL* m_glDrawTool{ nullptr };
+    sofa::helper::visual::DrawTool* m_drawTool{ nullptr };
     sofa::core::visual::VisualParams* m_vparams{ nullptr };
     GLFWwindow* m_firstWindow{ nullptr };
     int m_windowWidth{ 0 };
