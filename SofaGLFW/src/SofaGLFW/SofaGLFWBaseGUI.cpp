@@ -136,16 +136,29 @@ void* getNativeDisplayHandle()
 #    endif // BX_PLATFORM_*
 }
 
-bgfx::NativeWindowHandleType::Enum getNativeWindowHandleType()
+//bgfx::NativeWindowHandleType::Enum getNativeWindowHandleType()
+//{
+//#    if BX_PLATFORM_LINUX
+//#        if ENTRY_CONFIG_USE_WAYLAND
+//    return bgfx::NativeWindowHandleType::Wayland;
+//#        else
+//    return bgfx::NativeWindowHandleType::Default;
+//#        endif // ENTRY_CONFIG_USE_WAYLAND
+//#    else
+//    return bgfx::NativeWindowHandleType::Default;
+//#    endif // BX_PLATFORM_*
+//}
+
+bgfx_native_window_handle_type getNativeWindowHandleType()
 {
 #    if BX_PLATFORM_LINUX
 #        if ENTRY_CONFIG_USE_WAYLAND
-    return bgfx::NativeWindowHandleType::Wayland;
+    return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_WAYLAND;
 #        else
-    return bgfx::NativeWindowHandleType::Default;
+    return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_DEFAULT;
 #        endif // ENTRY_CONFIG_USE_WAYLAND
 #    else
-    return bgfx::NativeWindowHandleType::Default;
+    return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_DEFAULT;
 #    endif // BX_PLATFORM_*
 }
 
@@ -170,27 +183,49 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
     m_debug = BGFX_DEBUG_TEXT;
     m_reset  = BGFX_RESET_VSYNC;
 
-    bgfx::Init init;
-    init.type     = m_type; // bgfx::RendererType::Count ?
-    // init.vendorId = m_pciId;
-    init.platformData.nwh  = glfwNativeWindowHandle(glfwWindow);
-    init.platformData.ndt  = getNativeDisplayHandle();
+    //bgfx::Init init;
+    //init.type     = m_type; // bgfx::RendererType::Count ?
+    //// init.vendorId = m_pciId;
+    //init.platformData.nwh  = glfwNativeWindowHandle(glfwWindow);
+    //init.platformData.ndt  = getNativeDisplayHandle();
+    //init.platformData.type = getNativeWindowHandleType();
+    //init.resolution.width  = width;
+    //init.resolution.height = height;
+    //init.resolution.reset  = m_reset;
+    //auto res = bgfx::init(init);
+
+    //// Enable debug text.
+    //bgfx::setDebug(m_debug);
+
+    //// Set view 0 clear state.
+    //bgfx::setViewClear(0
+    //    , BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
+    //    , 0x303030ff
+    //    , 1.0f
+    //    , 0
+    //    );
+
+
+    bgfx_init_t init;
+    bgfx_init_ctor(&init);
+
+    init.type     = m_type;
+    init.platformData.nwh = glfwNativeWindowHandle(glfwWindow);
+    init.platformData.ndt = getNativeDisplayHandle();
     init.platformData.type = getNativeWindowHandleType();
-    init.resolution.width  = width;
-    init.resolution.height = height;
-    init.resolution.reset  = m_reset;
-    auto res = bgfx::init(init);
+
+    const auto res = bgfx_init(&init);
+    bgfx_reset(width, height, m_reset, init.resolution.format);
 
     // Enable debug text.
-    bgfx::setDebug(m_debug);
+    bgfx_set_debug(m_debug);
 
-    // Set view 0 clear state.
-    bgfx::setViewClear(0
-        , BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
+    bgfx_set_view_clear(0
+        , BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH
         , 0x303030ff
         , 1.0f
         , 0
-        );
+    );
 
     return res;
 }
