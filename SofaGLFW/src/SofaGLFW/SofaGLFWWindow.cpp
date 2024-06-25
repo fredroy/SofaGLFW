@@ -39,6 +39,8 @@
 #include <ranges>
 
 using namespace sofa;
+#include <bgfx/bgfx.h>
+
 namespace sofaglfw
 {
 SofaGLFWWindow::SofaGLFWWindow(GLFWwindow* glfwWindow, component::visual::BaseCamera::SPtr camera)
@@ -118,6 +120,7 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
     vparams->zFar() = m_currentCamera->getZFar();
     vparams->setProjectionMatrix(lastProjectionMatrix);
     vparams->setModelViewMatrix(lastModelviewMatrix);
+    bgfx::touch(0);
 
     simulation::node::draw(vparams, groot.get());
     
