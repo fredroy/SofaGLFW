@@ -39,6 +39,7 @@
 using namespace sofa;
 
 #include <bgfx/c99/bgfx.h>
+#include <bx/math.h>
 
 namespace sofaglfw
 {
@@ -67,20 +68,10 @@ void SofaGLFWWindow::close()
     m_backgrounds.clear();
 }
 
-
 void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams* vparams)
 {
-<<<<<<< HEAD
-    glClearColor(m_backgroundColor.r(), m_backgroundColor.g(), m_backgroundColor.b(), m_backgroundColor.a());
-    glClearDepth(1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    if (!m_currentBackgroundFilename.empty())
-        drawBackgroundImage();
-    
-    glEnable(GL_LIGHTING);
-    glEnable(GL_DEPTH_TEST);
-    glDisable(GL_COLOR_MATERIAL);
+    std::size_t width = vparams->viewport()[2];
+    std::size_t height = vparams->viewport()[3];
 
     // draw the scene
     if (!m_currentCamera)
@@ -88,67 +79,40 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
         msg_error("SofaGLFWGUI") << "No camera defined.";
         return;
     }
-    
-    
-    if (groot->f_bbox.getValue().isValid())
-    {        
-        vparams->sceneBBox() = groot->f_bbox.getValue();
-        m_currentCamera->setBoundingBox(vparams->sceneBBox().minBBox(), vparams->sceneBBox().maxBBox());
+
+    // Set view and projection matrix for view 0.
+    {
+        double viewd[16]{};
+        float view[16]{};
+
+        double projd[16]{};
+        float proj[16]{};
+
+        m_currentCamera->getOpenGLModelViewMatrix(viewd);
+        m_currentCamera->getOpenGLProjectionMatrix(projd);
+
+        for (unsigned int i = 0; i < 16; i++)
+        {
+            view[i] = static_cast<float>(viewd[i]);
+            proj[i] = static_cast<float>(projd[i]);
+        }
+
+        bgfx_set_view_transform(0, view, proj);
+
+        // Set view 0 default viewport.
+        bgfx_set_view_rect(0, 0, 0, uint16_t(width), uint16_t(height));
+
+        // Update the visual params
+        vparams->zNear() = m_currentCamera->getZNear();
+        vparams->zFar() = m_currentCamera->getZFar();
+        vparams->setProjectionMatrix(viewd);
+        vparams->setModelViewMatrix(projd);
     }
-    m_currentCamera->computeZ();
-    m_currentCamera->d_widthViewport.setValue(vparams->viewport()[2]);
-    m_currentCamera->d_heightViewport.setValue(vparams->viewport()[3]);
-=======
-    // glClearColor(m_backgroundColor.r(), m_backgroundColor.g(), m_backgroundColor.b(), m_backgroundColor.a());
-    // glClearDepth(1.0);
-    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    //glEnable(GL_LIGHTING);
-    //glEnable(GL_DEPTH_TEST);
-    //glDisable(GL_COLOR_MATERIAL);
+    // This dummy draw call is here to make sure that view 0 is cleared
+    // if no other draw calls are submitted to view 0.
+    bgfx_touch(0);
 
-    //// draw the scene
-    //if (!m_currentCamera)
-    //{
-    //    msg_error("SofaGLFWGUI") << "No camera defined.";
-    //    return;
-    //}
-
-    // if (groot->f_bbox.getValue().isValid())
-    // {
-    //     vparams->sceneBBox() = groot->f_bbox.getValue();
-    //     m_currentCamera->setBoundingBox(vparams->sceneBBox().minBBox(), vparams->sceneBBox().maxBBox());
-    // }
-    // m_currentCamera->computeZ();
-    // m_currentCamera->d_widthViewport.setValue(vparams->viewport()[2]);
-    // m_currentCamera->d_heightViewport.setValue(vparams->viewport()[3]);
->>>>>>> 8ad2cbf (display something)
-
-    // // matrices
-    // double lastModelviewMatrix [16];
-    // double lastProjectionMatrix [16];
-
-    // m_currentCamera->getOpenGLProjectionMatrix(lastProjectionMatrix);
-    // m_currentCamera->getOpenGLModelViewMatrix(lastModelviewMatrix);
-
-    // glViewport(0, 0, vparams->viewport()[2], vparams->viewport()[3]);
-    // glMatrixMode(GL_PROJECTION);
-    // glLoadIdentity();
-    // glMultMatrixd(lastProjectionMatrix);
-
-    // glMatrixMode(GL_MODELVIEW);
-    // glLoadIdentity();
-    // glMultMatrixd(lastModelviewMatrix);
-
-    // // Update the visual params
-    // vparams->zNear() = m_currentCamera->getZNear();
-    // vparams->zFar() = m_currentCamera->getZFar();
-    // vparams->setProjectionMatrix(lastProjectionMatrix);
-    // vparams->setModelViewMatrix(lastModelviewMatrix);
-    // simulation::node::draw(vparams, groot.get());
-
-    // Set view 0 default viewport.
-    bgfx_set_view_rect(0, 0, 0, vparams->viewport()[2], vparams->viewport()[3]);
 
     // This dummy draw call is here to make sure that view 0 is cleared
     // if no other draw calls are submitted to view 0.
@@ -170,16 +134,6 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
         std::cout << e.what() << std::endl;
     }
 
-<<<<<<< HEAD
-    // Update the visual params
-    vparams->zNear() = m_currentCamera->getZNear();
-    vparams->zFar() = m_currentCamera->getZFar();
-    vparams->setProjectionMatrix(lastProjectionMatrix);
-    vparams->setModelViewMatrix(lastModelviewMatrix);
-    simulation::node::draw(vparams, groot.get());
-    
-=======
->>>>>>> 8ad2cbf (display something)
 }
 
 void SofaGLFWWindow::setBackgroundColor(const RGBAColor& newColor)
