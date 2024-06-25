@@ -24,6 +24,23 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+#if BX_PLATFORM_LINUX
+#    if ENTRY_CONFIG_USE_WAYLAND
+#        include <wayland-egl.h>
+#        define GLFW_EXPOSE_NATIVE_WAYLAND
+#    else
+#        define GLFW_EXPOSE_NATIVE_X11
+#        define GLFW_EXPOSE_NATIVE_GLX
+#    endif
+#elif BX_PLATFORM_OSX
+#    define GLFW_EXPOSE_NATIVE_COCOA
+#    define GLFW_EXPOSE_NATIVE_NSGL
+#elif BX_PLATFORM_WINDOWS
+#    define GLFW_EXPOSE_NATIVE_WIN32
+#    define GLFW_EXPOSE_NATIVE_WGL
+#endif //
+
+
 #include <SofaGLFW/SofaGLFWWindow.h>
 
 #include <SofaGLFW/SofaGLFWMouseManager.h>
@@ -58,8 +75,6 @@
 #include <sofa/gl/DrawToolGL.h>
 #endif
 
-#include <sofa/gl/gl.h>
-
 #define BX_PLATFORM_WINDOWS 1
 
 using namespace sofa;
@@ -78,21 +93,6 @@ using namespace core::objectmodel;
 
 namespace sofaglfw
 {
-#if BX_PLATFORM_LINUX
-#    if ENTRY_CONFIG_USE_WAYLAND
-#        include <wayland-egl.h>
-#        define GLFW_EXPOSE_NATIVE_WAYLAND
-#    else
-#        define GLFW_EXPOSE_NATIVE_X11
-#        define GLFW_EXPOSE_NATIVE_GLX
-#    endif
-#elif BX_PLATFORM_OSX
-#    define GLFW_EXPOSE_NATIVE_COCOA
-#    define GLFW_EXPOSE_NATIVE_NSGL
-#elif BX_PLATFORM_WINDOWS
-#    define GLFW_EXPOSE_NATIVE_WIN32
-#    define GLFW_EXPOSE_NATIVE_WGL
-#endif //
 #include <GLFW/glfw3native.h>
 
 #include <bgfx/bgfx.h>
@@ -183,29 +183,6 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
     m_debug = BGFX_DEBUG_TEXT;
     m_reset  = BGFX_RESET_VSYNC;
 
-    //bgfx::Init init;
-    //init.type     = m_type; // bgfx::RendererType::Count ?
-    //// init.vendorId = m_pciId;
-    //init.platformData.nwh  = glfwNativeWindowHandle(glfwWindow);
-    //init.platformData.ndt  = getNativeDisplayHandle();
-    //init.platformData.type = getNativeWindowHandleType();
-    //init.resolution.width  = width;
-    //init.resolution.height = height;
-    //init.resolution.reset  = m_reset;
-    //auto res = bgfx::init(init);
-
-    //// Enable debug text.
-    //bgfx::setDebug(m_debug);
-
-    //// Set view 0 clear state.
-    //bgfx::setViewClear(0
-    //    , BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
-    //    , 0x303030ff
-    //    , 1.0f
-    //    , 0
-    //    );
-
-
     bgfx_init_t init;
     bgfx_init_ctor(&init);
 
@@ -251,7 +228,7 @@ bool SofaGLFWBaseGUI::init(int nbMSAASamples)
 
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
         //glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+        //glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         
         //glfwWindowHint(GLFW_SAMPLES, std::clamp(nbMSAASamples, 0, 32) );
 
@@ -696,34 +673,34 @@ void SofaGLFWBaseGUI::initVisual()
         visualStyle->init();
     }
 
-    //init gl states
-    glDepthFunc(GL_LEQUAL);
-    glClearDepth(1.0);
-    glEnable(GL_NORMALIZE);
+    ////init gl states
+    //glDepthFunc(GL_LEQUAL);
+    //glClearDepth(1.0);
+    //glEnable(GL_NORMALIZE);
 
-    glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+    //glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 
     // Setup 'light 0'
-    float lightAmbient[4] = { 0.5f, 0.5f, 0.5f,1.0f };
-    float lightDiffuse[4] = { 0.9f, 0.9f, 0.9f,1.0f };
-    float lightSpecular[4] = { 1.0f, 1.0f, 1.0f,1.0f };
-    float lightPosition[4] = { -0.7f, 0.3f, 0.0f,1.0f };
-    glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmbient);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDiffuse);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, lightSpecular);
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
+    // float lightAmbient[4] = { 0.5f, 0.5f, 0.5f,1.0f };
+    // float lightDiffuse[4] = { 0.9f, 0.9f, 0.9f,1.0f };
+    // float lightSpecular[4] = { 1.0f, 1.0f, 1.0f,1.0f };
+    // float lightPosition[4] = { -0.7f, 0.3f, 0.0f,1.0f };
+    // glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmbient);
+    // glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDiffuse);
+    // glLightfv(GL_LIGHT0, GL_SPECULAR, lightSpecular);
+    // glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
 
-    // Enable color tracking
-    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+    // // Enable color tracking
+    // glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
 
-    // All materials hereafter have full specular reflectivity with a high shine
-    float materialSpecular[4] = { 1.0f, 1.0f, 1.0f,1.0f };
-    glMaterialfv(GL_FRONT, GL_SPECULAR, materialSpecular);
-    glMateriali(GL_FRONT, GL_SHININESS, 128);
+    //// All materials hereafter have full specular reflectivity with a high shine
+    //float materialSpecular[4] = { 1.0f, 1.0f, 1.0f,1.0f };
+    //glMaterialfv(GL_FRONT, GL_SPECULAR, materialSpecular);
+    //glMateriali(GL_FRONT, GL_SHININESS, 128);
 
-    glShadeModel(GL_SMOOTH);
+    //glShadeModel(GL_SMOOTH);
 
-    glEnable(GL_LIGHT0);
+    //glEnable(GL_LIGHT0);
 
     m_vparams = VisualParams::defaultInstance();
     for (auto& [glfwWindow, sofaGlfwWindow] : s_mapWindows)

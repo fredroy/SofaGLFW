@@ -123,7 +123,7 @@ public:
 
     //bgfx::RendererType::Enum m_type = bgfx::RendererType::OpenGL; // obviously to change
     bgfx_renderer_type m_type = bgfx_renderer_type::BGFX_RENDERER_TYPE_OPENGL;
-    uint16_t m_pciId = BGFX_PCI_ID_APPLE;
+    uint16_t m_pciId = BGFX_PCI_ID_MICROSOFT;
     uint32_t m_debug = BGFX_DEBUG_NONE;
     uint32_t m_reset = BGFX_RESET_VSYNC;
     
