@@ -21,8 +21,12 @@
 ******************************************************************************/
 #pragma once
 
+<<<<<<< HEAD
 #include <sofa/simulation/Node.h>
 #include <sofa/gl/DrawToolGL.h>
+=======
+#include <sofa/simulation/Simulation.h>
+>>>>>>> 60a972a (WIP)
 #include <sofa/component/visual/BaseCamera.h>
 
 #include <SofaGLFW/BaseGUIEngine.h>
@@ -36,6 +40,11 @@
 struct GLFWwindow;
 struct GLFWmonitor;
 using namespace sofa::type;
+
+namespace sofa::helper::visual
+{
+    class DrawTool;
+}
 
 namespace sofaglfw
 {
@@ -157,7 +166,7 @@ private:
     bool m_bGlfwIsInitialized{ false };
     bool m_bGlewIsInitialized{ false };
 
-    std::unique_ptr<sofa::gl::DrawToolGL> m_glDrawTool;
+    std::unique_ptr<sofa::helper::visual::DrawTool> m_drawTool;
     sofa::core::visual::VisualParams* m_vparams{ nullptr };
     GLFWwindow* m_firstWindow{ nullptr };
     int m_windowWidth{ 0 };
