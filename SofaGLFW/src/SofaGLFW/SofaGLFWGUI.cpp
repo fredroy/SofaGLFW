@@ -26,14 +26,23 @@
 #include <sofa/simulation/Simulation.h>
 #include <sofa/component/setting/ViewerSetting.h>
 
+#include <sofa/gui/common/ArgumentParser.h>
+#include <algorithm>
 using namespace sofa;
 
 namespace sofaglfw
 {
 
-bool SofaGLFWGUI::init()
+bool SofaGLFWGUI::init(sofa::gui::common::ArgumentParser* argumentParser)
 {
-    return m_baseGUI.init();
+    int viewerMSAANbSampling = 0;
+    if (argumentParser)
+    {
+        argumentParser->getValueFromKey("msaa", viewerMSAANbSampling);
+        viewerMSAANbSampling = std::clamp(viewerMSAANbSampling, 1, 32);
+    }
+
+    return m_baseGUI.init(viewerMSAANbSampling);
 }
 
 int SofaGLFWGUI::mainLoop()
@@ -122,11 +131,11 @@ void SofaGLFWGUI::setBackgroundImage(const std::string& image)
     SOFA_UNUSED(image);
 }
 
-sofa::gui::common::BaseGUI* SofaGLFWGUI::CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename)
+sofa::gui::common::BaseGUI* SofaGLFWGUI::CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename, sofa::gui::common::ArgumentParser* args)
 {
     SofaGLFWGUI::mGuiName = name;
     auto* gui = new SofaGLFWGUI();
-    if (!gui->init())
+    if (!gui->init(args))
     {
         return nullptr;
     }
@@ -137,6 +146,21 @@ sofa::gui::common::BaseGUI* SofaGLFWGUI::CreateGUI(const char* name, sofa::simul
     }
     
     return gui;
+}
+
+int SofaGLFWGUI::RegisterGUIParameters(sofa::gui::common::ArgumentParser* argumentParser)
+{
+    if (argumentParser)
+    {
+        argumentParser->addArgument(
+            cxxopts::value<unsigned int>()
+            ->default_value("1"),
+            "msaa",
+            "Number of samples for MSAA (Multi Sampling Anti Aliasing ; value < 2 means disabled"
+        );
+    }
+
+    return 0;
 }
 
 } // namespace sofaglfw

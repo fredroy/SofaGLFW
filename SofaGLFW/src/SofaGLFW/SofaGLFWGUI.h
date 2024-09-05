@@ -27,6 +27,11 @@
 
 #include <sofa/component/setting/ViewerSetting.h>
 
+namespace sofa::gui::common
+{
+    class ArgumentParser;
+}
+
 namespace sofaglfw
 {
 
@@ -38,7 +43,7 @@ public:
     SofaGLFWGUI() = default;
     ~SofaGLFWGUI() override = default;
 
-    bool init();
+    bool init(sofa::gui::common::ArgumentParser* argumentParser = nullptr);
     /// BaseGUI API
     int mainLoop() override;
     void redraw() override;
@@ -51,7 +56,10 @@ public:
     void setFullScreen() override;
     void setBackgroundColor(const sofa::type::RGBAColor& color) override;
     void setBackgroundImage(const std::string& image) override;
-    static sofa::gui::common::BaseGUI * CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename);
+
+    static sofa::gui::common::BaseGUI* CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename, sofa::gui::common::ArgumentParser* args = nullptr);
+    static int RegisterGUIParameters(sofa::gui::common::ArgumentParser* argumentParser);
+
 protected:
     SofaGLFWBaseGUI m_baseGUI;
     bool m_bCreateWithFullScreen{ false };

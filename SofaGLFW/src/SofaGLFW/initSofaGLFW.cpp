@@ -47,7 +47,7 @@ void initExternalModule()
     {
         first = false;
 #if SOFAGLFW_HAVE_SOFA_GUI_COMMON
-        sofa::gui::common::GUIManager::RegisterGUI("glfw", &sofaglfw::SofaGLFWGUI::CreateGUI);
+        sofa::gui::common::GUIManager::RegisterGUI("glfw", &sofaglfw::SofaGLFWGUI::CreateGUI, &sofaglfw::SofaGLFWGUI::RegisterGUIParameters);
 #endif // SOFAGLFW_HAVE_SOFA_GUI_COMMON
     }
 }
