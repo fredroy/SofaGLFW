@@ -26,24 +26,67 @@
 #include <implot.h>
 #include <sofa/helper/map.h>
 
+#include <misc/cpp/imgui_stdlib.h>
+
 namespace sofaimgui
 {
 
 using namespace sofa;
 
-template<>
-void DataWidget<bool>::showWidget(MyData& data)
+template<typename ArithmetricType>
+void showWidgetT(Data<ArithmetricType>& data)
 {
-    const bool initialValue = data.getValue();
-    bool changeableValue = initialValue;
+    static_assert(std::is_arithmetic_v<ArithmetricType>);
+    
+    const ArithmetricType initialValue = data.getValue();
+    ArithmetricType changeableValue = initialValue;
     const auto& label = data.getName();
     const auto id = data.getName() + data.getOwner()->getPathName();
-
-    ImGui::Checkbox((label + "##" + id).c_str(), &changeableValue);
+    
+    const std::string labelStr = (label + "##" + id);
+    
+    if constexpr (std::is_same_v<ArithmetricType, bool>)
+    {
+        ImGui::Checkbox(labelStr.c_str(), &changeableValue);
+    }
+    else if constexpr (std::is_same_v<ArithmetricType, float>)
+    {
+        ImGui::InputFloat(labelStr.c_str(), &changeableValue);
+    }
+    else if constexpr (std::is_same_v<ArithmetricType, double>)
+    {
+        ImGui::InputDouble(labelStr.c_str(), &changeableValue);
+    }
+    else if constexpr (std::is_integral_v<ArithmetricType>)
+    {
+        int tempValue = static_cast<int>(changeableValue);
+        ImGui::InputInt(labelStr.c_str() , &tempValue);
+        changeableValue = static_cast<ArithmetricType>(tempValue);
+    }
+    
     if (changeableValue != initialValue)
     {
         data.setValue(changeableValue);
     }
+}
+
+
+template<>
+void DataWidget<bool>::showWidget(MyData& data)
+{
+    showWidgetT(data);
+}
+
+template<>
+void DataWidget<double>::showWidget(MyData& data)
+{
+    showWidgetT(data);
+}
+
+template<>
+void DataWidget<float>::showWidget(MyData& data)
+{
+    showWidgetT(data);
 }
 
 /***********************************************************************************************************************
@@ -485,6 +528,8 @@ void DataWidget<std::map<std::string, type::vector<float> > >::showWidget(MyData
  **********************************************************************************************************************/
 
 const bool dw_bool = DataWidgetFactory::Add<bool>();
+const bool dw_double = DataWidgetFactory::Add<double>();
+const bool dw_float = DataWidgetFactory::Add<float>();
 
 const bool dw_vec1d = DataWidgetFactory::Add<type::Vec<1, double> >();
 const bool dw_vec1f = DataWidgetFactory::Add<type::Vec<1, float> >();
