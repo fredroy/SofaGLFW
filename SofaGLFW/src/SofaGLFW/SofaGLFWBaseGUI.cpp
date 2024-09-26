@@ -78,13 +78,47 @@ using namespace sofa::gui::common;
 using std::endl;
 using namespace sofa::type;
 using namespace sofa::defaulttype;
-using namespace sofa::gl;
 using simulation::getSimulation;
 using namespace sofa::simulation;
 using namespace sofa::gui::common;
 using namespace  core::visual;
 using namespace component::visual;
 using namespace core::objectmodel;
+
+namespace
+{
+    template<class Real>
+    bool glhUnProjectf(Real winx, Real winy, Real winz, Real* modelview, Real* projection, const core::visual::VisualParams::Viewport& viewport, Real* objectCoordinate)
+    {
+        //Transformation matrices
+        sofa::type::Mat<4, 4, Real> matModelview(modelview);
+        sofa::type::Mat<4, 4, Real> matProjection(projection);
+
+        sofa::type::Mat<4, 4, Real> m, A;
+        sofa::type::Vec<4, Real> in, out;
+
+        A = matProjection * matModelview;
+        const bool canInvert = sofa::type::invertMatrix(m, A);
+        assert(canInvert);
+        SOFA_UNUSED(canInvert);
+
+        //Transformation of normalized coordinates between -1 and 1
+        in[0] = (winx - (Real)viewport[0]) / (Real)viewport[2] * 2.0 - 1.0;
+        in[1] = (winy - (Real)viewport[1]) / (Real)viewport[3] * 2.0 - 1.0;
+        in[2] = 2.0 * winz - 1.0;
+        in[3] = 1.0;
+        //Objects coordinates
+        out = m * in;
+
+        if (sofa::helper::isEqual(out[3], 0.0))
+            return false;
+        out[3] = 1.0 / out[3];
+        objectCoordinate[0] = out[0] * out[3];
+        objectCoordinate[1] = out[1] * out[3];
+        objectCoordinate[2] = out[2] * out[3];
+        return true;
+    }
+}
 
 namespace sofaglfw
 {
@@ -212,6 +246,13 @@ bool SofaGLFWBaseGUI::init(int nbMSAASamples)
         //glfwWindowHint(GLFW_SAMPLES, std::clamp(nbMSAASamples, 0, 32) );
 
         m_drawTool = new bgfxplugin::DrawToolBGFX();
+
+        // Replace generic visual models and OglModel with BGFXModel
+        sofa::core::ObjectFactory::ClassEntry::SPtr classVisualModel;
+        sofa::core::ObjectFactory::AddAlias("VisualModel", "BGFXModel", true,
+            &classVisualModel);
+        sofa::core::ObjectFactory::AddAlias("OglModel", "BGFXModel", true,
+            &classVisualModel);
 
         m_bGlfwIsInitialized = true;
         return true;
@@ -846,12 +887,13 @@ void SofaGLFWBaseGUI::moveRayPickInteractor(int eventX, int eventY)
     Vec3d pz;
     Vec3d px1;
     Vec3d py1;
-    gluUnProject(eventX,   viewport[3]-1-(eventY),   0,   lastModelviewMatrix, lastProjectionMatrix, viewport.data(), &(p0[0]),  &(p0[1]),  &(p0[2]));
-    gluUnProject(eventX+1, viewport[3]-1-(eventY),   0,   lastModelviewMatrix, lastProjectionMatrix, viewport.data(), &(px[0]),  &(px[1]),  &(px[2]));
-    gluUnProject(eventX,   viewport[3]-1-(eventY+1), 0,   lastModelviewMatrix, lastProjectionMatrix, viewport.data(), &(py[0]),  &(py[1]),  &(py[2]));
-    gluUnProject(eventX,   viewport[3]-1-(eventY),   0.1, lastModelviewMatrix, lastProjectionMatrix, viewport.data(), &(pz[0]),  &(pz[1]),  &(pz[2]));
-    gluUnProject(eventX+1, viewport[3]-1-(eventY),   0.1, lastModelviewMatrix, lastProjectionMatrix, viewport.data(), &(px1[0]), &(px1[1]), &(px1[2]));
-    gluUnProject(eventX,   viewport[3]-1-(eventY+1), 0,   lastModelviewMatrix, lastProjectionMatrix, viewport.data(), &(py1[0]), &(py1[1]), &(py1[2]));
+
+    glhUnProjectf<double>(eventX,   viewport[3]-1-(eventY),   0,   lastModelviewMatrix, lastProjectionMatrix, viewport, p0.ptr());
+    glhUnProjectf<double>(eventX+1, viewport[3]-1-(eventY),   0,   lastModelviewMatrix, lastProjectionMatrix, viewport, px.ptr());
+    glhUnProjectf<double>(eventX,   viewport[3]-1-(eventY+1), 0,   lastModelviewMatrix, lastProjectionMatrix, viewport, py.ptr());
+    glhUnProjectf<double>(eventX,   viewport[3]-1-(eventY),   0.1, lastModelviewMatrix, lastProjectionMatrix, viewport, pz.ptr());
+    glhUnProjectf<double>(eventX+1, viewport[3]-1-(eventY),   0.1, lastModelviewMatrix, lastProjectionMatrix, viewport, px1.ptr());
+    glhUnProjectf<double>(eventX,   viewport[3]-1-(eventY+1), 0,   lastModelviewMatrix, lastProjectionMatrix, viewport, py1.ptr());
 
     px1 -= pz;
     py1 -= pz;
