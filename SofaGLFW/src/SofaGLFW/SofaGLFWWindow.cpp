@@ -58,64 +58,46 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
     std::size_t width = vparams->viewport()[2];
     std::size_t height = vparams->viewport()[3];
 
-    const bx::Vec3 at = { 0.0f, 0.0f,   0.0f };
-    const bx::Vec3 eye = { 0.0f, 0.0f, -35.0f };
+    // draw the scene
+    if (!m_currentCamera)
+    {
+        msg_error("SofaGLFWGUI") << "No camera defined.";
+        return;
+    }
 
     // Set view and projection matrix for view 0.
     {
-        float view[16];
-        bx::mtxLookAt(view, eye, at);
+        double viewd[16]{};
+        float view[16]{};
 
-        float proj[16];
-        bx::mtxProj(proj, 60.0f, float(width) / float(height), 0.1f, 100.0f, bgfx_get_caps()->homogeneousDepth);
+        double projd[16]{};
+        float proj[16]{};
+
+        m_currentCamera->getOpenGLModelViewMatrix(viewd);
+        m_currentCamera->getOpenGLProjectionMatrix(projd);
+
+        for (unsigned int i = 0; i < 16; i++)
+        {
+            view[i] = static_cast<float>(viewd[i]);
+            proj[i] = static_cast<float>(projd[i]);
+        }
+
         bgfx_set_view_transform(0, view, proj);
 
         // Set view 0 default viewport.
         bgfx_set_view_rect(0, 0, 0, uint16_t(width), uint16_t(height));
+
+
+        // Update the visual params
+        vparams->zNear() = m_currentCamera->getZNear();
+        vparams->zFar() = m_currentCamera->getZFar();
+        vparams->setProjectionMatrix(viewd);
+        vparams->setModelViewMatrix(projd);
     }
 
     // This dummy draw call is here to make sure that view 0 is cleared
     // if no other draw calls are submitted to view 0.
     bgfx_touch(0);
-
-    //// draw the scene
-    //if (!m_currentCamera)
-    //{
-    //    msg_error("SofaGLFWGUI") << "No camera defined.";
-    //    return;
-    //}
-
-    // if (groot->f_bbox.getValue().isValid())
-    // {
-    //     vparams->sceneBBox() = groot->f_bbox.getValue();
-    //     m_currentCamera->setBoundingBox(vparams->sceneBBox().minBBox(), vparams->sceneBBox().maxBBox());
-    // }
-    // m_currentCamera->computeZ();
-    // m_currentCamera->d_widthViewport.setValue(vparams->viewport()[2]);
-    // m_currentCamera->d_heightViewport.setValue(vparams->viewport()[3]);
-
-    // // matrices
-    // double lastModelviewMatrix [16];
-    // double lastProjectionMatrix [16];
-
-    // m_currentCamera->getOpenGLProjectionMatrix(lastProjectionMatrix);
-    // m_currentCamera->getOpenGLModelViewMatrix(lastModelviewMatrix);
-
-    // glViewport(0, 0, vparams->viewport()[2], vparams->viewport()[3]);
-    // glMatrixMode(GL_PROJECTION);
-    // glLoadIdentity();
-    // glMultMatrixd(lastProjectionMatrix);
-
-    // glMatrixMode(GL_MODELVIEW);
-    // glLoadIdentity();
-    // glMultMatrixd(lastModelviewMatrix);
-
-    // // Update the visual params
-    // vparams->zNear() = m_currentCamera->getZNear();
-    // vparams->zFar() = m_currentCamera->getZFar();
-    // vparams->setProjectionMatrix(lastProjectionMatrix);
-    // vparams->setModelViewMatrix(lastModelviewMatrix);
-    // simulation::node::draw(vparams, groot.get());
 
 
     // This dummy draw call is here to make sure that view 0 is cleared
