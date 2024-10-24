@@ -36,9 +36,17 @@ namespace sofaglfw
 bool SofaGLFWGUI::init(sofa::gui::common::ArgumentParser* argumentParser)
 {
     int viewerMSAANbSampling = 0;
-    if (argumentParser)
+
+    sofa::gui::common::ArgumentParser* parser = argumentParser;
+
+    if (parser == nullptr)
     {
-        argumentParser->getValueFromKey("msaa", viewerMSAANbSampling);
+        parser = sofa::gui::common::BaseGUI::GetArgumentParser();
+    }
+
+    if (parser)
+    {
+        parser->getValueFromKey("msaa", viewerMSAANbSampling);
         viewerMSAANbSampling = std::clamp(viewerMSAANbSampling, 1, 32);
     }
 
@@ -131,20 +139,20 @@ void SofaGLFWGUI::setBackgroundImage(const std::string& image)
     SOFA_UNUSED(image);
 }
 
-sofa::gui::common::BaseGUI* SofaGLFWGUI::CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename, sofa::gui::common::ArgumentParser* args)
+sofa::gui::common::BaseGUI* SofaGLFWGUI::CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename)
 {
     SofaGLFWGUI::mGuiName = name;
     auto* gui = new SofaGLFWGUI();
-    if (!gui->init(args))
+    if (!gui->init())
     {
         return nullptr;
     }
-    
-    if(groot)
+
+    if (groot)
     {
         gui->setScene(groot, filename);
     }
-    
+
     return gui;
 }
 

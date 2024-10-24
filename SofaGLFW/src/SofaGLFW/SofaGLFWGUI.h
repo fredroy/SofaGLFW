@@ -57,7 +57,7 @@ public:
     void setBackgroundColor(const sofa::type::RGBAColor& color) override;
     void setBackgroundImage(const std::string& image) override;
 
-    static sofa::gui::common::BaseGUI* CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename, sofa::gui::common::ArgumentParser* args = nullptr);
+    static sofa::gui::common::BaseGUI* CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename);
     static int RegisterGUIParameters(sofa::gui::common::ArgumentParser* argumentParser);
 
 protected:

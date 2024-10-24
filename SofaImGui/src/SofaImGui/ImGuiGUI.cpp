@@ -40,7 +40,7 @@ ImGuiGUI::ImGuiGUI()
 }
 
 
-sofa::gui::common::BaseGUI* ImGuiGUI::CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename, sofa::gui::common::ArgumentParser* args)
+sofa::gui::common::BaseGUI* ImGuiGUI::CreateGUI(const char* name, sofa::simulation::NodeSPtr groot, const char* filename)
 {
     ImGuiGUI::mGuiName = name;
     auto* gui = new ImGuiGUI();
