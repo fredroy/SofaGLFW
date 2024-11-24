@@ -31,7 +31,7 @@
 #include <memory>
 
 #include <SofaGLFW/SofaGLFWMouseManager.h>
-#include <sofa/gl/VideoRecorderFFMPEG.h>
+#include <bgfx/bgfx.h>
 
 struct GLFWwindow;
 struct GLFWmonitor;
@@ -123,6 +123,12 @@ public:
     }
 
     static void triggerSceneAxis(sofa::simulation::NodeSPtr groot);
+
+    bool initEngine(uint32_t width, uint32_t height, GLFWwindow* glfwWindow);
+    bgfx::RendererType::Enum m_type = bgfx::RendererType::OpenGL; // obviously to change
+    uint16_t m_pciId = BGFX_PCI_ID_APPLE;
+    uint32_t m_debug = BGFX_DEBUG_NONE;
+    uint32_t m_reset = BGFX_RESET_VSYNC;
 
 private:
     // GLFW callbacks
