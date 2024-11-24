@@ -48,6 +48,10 @@
 
 #include <algorithm>
 
+#include <sofa/gui/common/BaseViewer.h>
+#include <sofa/gui/common/BaseGUI.h>
+#include <sofa/gui/common/PickHandler.h>
+
 using namespace sofa;
 using namespace sofa::gui::common;
 
@@ -64,6 +68,77 @@ using namespace core::objectmodel;
 
 namespace sofaglfw
 {
+#if BX_PLATFORM_LINUX
+#    if ENTRY_CONFIG_USE_WAYLAND
+#        include <wayland-egl.h>
+#        define GLFW_EXPOSE_NATIVE_WAYLAND
+#    else
+#        define GLFW_EXPOSE_NATIVE_X11
+#        define GLFW_EXPOSE_NATIVE_GLX
+#    endif
+#elif BX_PLATFORM_OSX
+#    define GLFW_EXPOSE_NATIVE_COCOA
+#    define GLFW_EXPOSE_NATIVE_NSGL
+#elif BX_PLATFORM_WINDOWS
+#    define GLFW_EXPOSE_NATIVE_WIN32
+#    define GLFW_EXPOSE_NATIVE_WGL
+#endif //
+#include <GLFW/glfw3native.h>
+
+#include <bgfx/bgfx.h>
+
+static void* glfwNativeWindowHandle(GLFWwindow* _window)
+    {
+#    if BX_PLATFORM_LINUX
+#         if ENTRY_CONFIG_USE_WAYLAND
+        wl_egl_window *win_impl = (wl_egl_window*)glfwGetWindowUserPointer(_window);
+        if(!win_impl)
+        {
+            int width, height;
+            glfwGetWindowSize(_window, &width, &height);
+            struct wl_surface* surface = (struct wl_surface*)glfwGetWaylandWindow(_window);
+            if(!surface)
+                return nullptr;
+            win_impl = wl_egl_window_create(surface, width, height);
+            glfwSetWindowUserPointer(_window, (void*)(uintptr_t)win_impl);
+        }
+        return (void*)(uintptr_t)win_impl;
+#        else
+        return (void*)(uintptr_t)glfwGetX11Window(_window);
+#        endif
+#    elif BX_PLATFORM_OSX
+        return glfwGetCocoaWindow(_window);
+#    elif BX_PLATFORM_WINDOWS
+        return glfwGetWin32Window(_window);
+#    endif // BX_PLATFORM_
+    }
+
+void* getNativeDisplayHandle()
+{
+#    if BX_PLATFORM_LINUX
+#        if ENTRY_CONFIG_USE_WAYLAND
+    return glfwGetWaylandDisplay();
+#        else
+    return glfwGetX11Display();
+#        endif // ENTRY_CONFIG_USE_WAYLAND
+#    else
+    return nullptr;
+#    endif // BX_PLATFORM_*
+}
+
+bgfx::NativeWindowHandleType::Enum getNativeWindowHandleType()
+{
+#    if BX_PLATFORM_LINUX
+#        if ENTRY_CONFIG_USE_WAYLAND
+    return bgfx::NativeWindowHandleType::Wayland;
+#        else
+    return bgfx::NativeWindowHandleType::Default;
+#        endif // ENTRY_CONFIG_USE_WAYLAND
+#    else
+    return bgfx::NativeWindowHandleType::Default;
+#    endif // BX_PLATFORM_*
+}
+
 SofaGLFWBaseGUI::SofaGLFWBaseGUI()
 {
     m_guiEngine = std::make_shared<NullGUIEngine>();
@@ -77,6 +152,36 @@ SofaGLFWBaseGUI::~SofaGLFWBaseGUI()
 core::sptr<Node> SofaGLFWBaseGUI::getRootNode() const
 {
     return m_groot;
+}
+
+bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* glfwWindow)
+{
+    m_debug  = BGFX_DEBUG_NONE;
+    m_reset  = BGFX_RESET_VSYNC;
+
+    bgfx::Init init;
+    init.type     = m_type; // bgfx::RendererType::Count ?
+    init.vendorId = m_pciId;
+    init.platformData.nwh  = glfwNativeWindowHandle(glfwWindow);
+    init.platformData.ndt  = getNativeDisplayHandle();
+    init.platformData.type = getNativeWindowHandleType();
+    init.resolution.width  = width;
+    init.resolution.height = height;
+    init.resolution.reset  = m_reset;
+    auto res = bgfx::init(init);
+
+    // Enable debug text.
+    bgfx::setDebug(m_debug);
+
+    // Set view 0 clear state.
+    bgfx::setViewClear(0
+        , BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
+        , 0x303030ff
+        , 1.0f
+        , 0
+        );
+    
+    return res;
 }
 
 bool SofaGLFWBaseGUI::init(int nbMSAASamples)
@@ -97,9 +202,15 @@ bool SofaGLFWBaseGUI::init(int nbMSAASamples)
         // defined samples for MSAA
         // min = 0  (no MSAA Anti-aliasing)
         // max = 32 (MSAA with 32 samples)
-        glfwWindowHint(GLFW_SAMPLES, std::clamp(nbMSAASamples, 0, 32) );
 
-        m_glDrawTool = new DrawToolGL();
+        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+        //glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+        
+        //glfwWindowHint(GLFW_SAMPLES, std::clamp(nbMSAASamples, 0, 32) );
+        
+        m_glDrawTool = new sofa::gl::DrawToolGL();
+
         m_bGlfwIsInitialized = true;
         return true;
     }
@@ -284,6 +395,7 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
 
     if (glfwWindow)
     {
+        
         glfwSetKeyCallback(glfwWindow, key_callback);
         glfwSetCursorPosCallback(glfwWindow, cursor_position_callback);
         glfwSetMouseButtonCallback(glfwWindow, mouse_button_callback);
@@ -301,7 +413,9 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
         glfwSetWindowUserPointer(glfwWindow, this);
 
         makeCurrentContext(glfwWindow);
-
+        
+        initEngine(width, height, glfwWindow);
+        
         m_guiEngine->initBackend(glfwWindow);
 
         auto camera = findCamera(m_groot);

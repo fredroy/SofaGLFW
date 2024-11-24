@@ -8,6 +8,7 @@ sofa_find_package(Sofa.Simulation.Graph REQUIRED)
 sofa_find_package(Sofa.GL REQUIRED)
 sofa_find_package(Sofa.Component.Visual REQUIRED)
 sofa_find_package(Sofa.GUI.Common QUIET)
+find_package(bgfx QUIET)
 
 include(FetchContent)
 
@@ -67,6 +68,11 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     $<BUILD_INTERFACE:${glfw_SOURCE_DIR}/include>  
     $<INSTALL_INTERFACE:include>
 )
+
+if(bgfx_FOUND)
+    message("${PROJECT_NAME}: bgfx support enabled.")
+    target_link_libraries(${PROJECT_NAME} PUBLIC bgfx::bgfx)
+endif()
 
 if(Sofa.GUI.Common_FOUND)
     target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.GUI.Common)
