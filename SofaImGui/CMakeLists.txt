@@ -6,7 +6,7 @@ project(SofaImGui LANGUAGES CXX)
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/lib/cmake)
 
 sofa_find_package(SofaGLFW REQUIRED)
-sofa_find_package(Sofa.GL.Component.Rendering3D REQUIRED)
+sofa_find_package(Sofa.GL.Component.Rendering3D)
 
 option(SOFAIMGUI_FORCE_OPENGL2 "Force OpenGL2 mode (mandatory for MacOS). If false, OpenGL3 mode is activated (default)." OFF)
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -159,9 +159,13 @@ set(IMGUI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/resources ${imgui_SOURCE_DIR} $
 add_library(${PROJECT_NAME} SHARED ${HEADER_FILES} ${SOURCE_FILES} ${IMGUI_SOURCE_FILES} )
 target_include_directories(${PROJECT_NAME} PUBLIC "$<BUILD_INTERFACE:${IMGUI_SOURCE_DIR}>")
 target_include_directories(${PROJECT_NAME} PRIVATE "$<BUILD_INTERFACE:${imoguizmo_SOURCE_DIR}>")
-target_link_libraries(${PROJECT_NAME} PUBLIC SofaGLFW Sofa.GL.Component.Rendering3D ${CMAKE_DL_LIBS})
+target_link_libraries(${PROJECT_NAME} PUBLIC SofaGLFW ${CMAKE_DL_LIBS})
 target_link_libraries(${PROJECT_NAME} PRIVATE SimpleIni::SimpleIni)
 target_link_libraries(${PROJECT_NAME} PRIVATE nfd::nfd)
+
+if(Sofa.GL.Component.Rendering3D_FOUND)
+    target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.GL.Component.Rendering3D)
+endif()
 
 # setup the same API exports for imgui
 target_compile_definitions(${PROJECT_NAME} PUBLIC IMGUI_API=SOFAIMGUI_API)
