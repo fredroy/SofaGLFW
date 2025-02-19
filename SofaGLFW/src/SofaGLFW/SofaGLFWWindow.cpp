@@ -164,12 +164,12 @@ void SofaGLFWWindow::setBackgroundImage(const std::string& filename)
             }
             else
             {
-                auto* texture = new gl::Texture(backgroundImage);
-                if(texture)
-                {
-                    texture->init();
-                    m_backgrounds.emplace(filename, Background{backgroundImage, texture});
-                }
+                //auto* texture = new gl::Texture(backgroundImage);
+                //if(texture)
+                //{
+                //    texture->init();
+                //    m_backgrounds.emplace(filename, Background{backgroundImage, texture});
+                //}
             }
         }
     }
@@ -181,11 +181,7 @@ void SofaGLFWWindow::drawBackgroundImage()
 {
     if(!m_backgrounds.contains(m_currentBackgroundFilename))
         return;
-
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    
-    glDisable(GL_LIGHTING);
-    
+        
     const auto& background = m_backgrounds[m_currentBackgroundFilename];
 
     if(!background.image)
@@ -198,40 +194,7 @@ void SofaGLFWWindow::drawBackgroundImage()
     int screenHeight = 0;
     
     glfwGetFramebufferSize(m_glfwWindow, &screenWidth, &screenHeight);
-    
-    glEnable(GL_TEXTURE_2D);
-    glDisable(GL_DEPTH_TEST);
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(-0.5, screenWidth, -0.5, screenHeight, -1.0, 1.0);
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
 
-    background.texture->bind();
-
-    const double coordWidth = int(screenWidth / imageWidth) + 1;
-    const double coordHeight = int(screenHeight / imageHeight) + 1;
-
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glBegin(GL_QUADS);
-    glTexCoord2d(0.0,            0.0);             glVertex3d( -imageWidth*coordWidth, -imageHeight*coordHeight, 0.0 );
-    glTexCoord2d(coordWidth*2.0, 0.0);             glVertex3d(  imageWidth*coordWidth, -imageHeight*coordHeight, 0.0 );
-    glTexCoord2d(coordWidth*2.0, coordHeight*2.0); glVertex3d(  imageWidth*coordWidth,  imageHeight*coordHeight, 0.0 );
-    glTexCoord2d(0.0,            coordHeight*2.0); glVertex3d( -imageWidth*coordWidth,  imageHeight*coordHeight, 0.0 );
-    glEnd();
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-
-    glDisable(GL_TEXTURE_2D);
-    
-    glPopAttrib();
 }
 
 void SofaGLFWWindow::setCamera(component::visual::BaseCamera::SPtr newCamera)

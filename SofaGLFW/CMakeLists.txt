@@ -62,7 +62,7 @@ endif()
 
 add_library(${PROJECT_NAME} SHARED ${HEADER_FILES} ${SOURCE_FILES})
 
-target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.GL Sofa.Simulation.Graph Sofa.Component.Visual Sofa.Component.Setting)
+target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.Simulation.Graph Sofa.Component.Visual Sofa.Component.Setting)
 target_link_libraries(${PROJECT_NAME} PUBLIC glfw)
 
 target_include_directories(${PROJECT_NAME} PUBLIC 
