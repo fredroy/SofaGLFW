@@ -203,6 +203,7 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
     init.platformData.nwh = glfwNativeWindowHandle(glfwWindow);
     init.platformData.ndt = getNativeDisplayHandle();
     init.platformData.type = getNativeWindowHandleType();
+    init.debug = true;
 
     const auto res = bgfx_init(&init);
     bgfx_reset(width, height, m_reset, init.resolution.format);
