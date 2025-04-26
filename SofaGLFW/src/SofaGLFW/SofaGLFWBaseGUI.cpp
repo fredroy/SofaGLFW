@@ -194,7 +194,8 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
 {
    // m_debug = BGFX_DEBUG_NONE;
     m_debug = BGFX_DEBUG_TEXT;
-    m_reset = BGFX_RESET_VSYNC;
+    m_reset = BGFX_RESET_VSYNC; // enable vsync
+    //m_reset = BGFX_RESET_NONE; // disable vsync
 
     bgfx_init_t init;
     bgfx_init_ctor(&init);
