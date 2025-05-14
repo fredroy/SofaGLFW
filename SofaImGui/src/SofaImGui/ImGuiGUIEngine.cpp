@@ -217,6 +217,7 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
                         {
                             glfwSetWindowPos(glfwWindow, static_cast<int>(windowPosX), static_cast<int>(windowPosY));
                             foundValidMonitor = true;
+                            break;
                         }
 
                     }
