@@ -107,6 +107,16 @@ namespace windows
                     {
                         for (const auto object : node->getNodeObjects())
                         {
+                            const auto& objectName = object->getName();
+                            const auto objectClassName = object->getClassName();
+                            const bool isObjectHighlighted = !filter.Filters.empty() && (filter.PassFilter(objectName.c_str()) || filter.PassFilter(objectClassName.c_str()));
+                            
+                            
+                            if(!isObjectHighlighted && !filter.Filters.empty())
+                            {
+                                continue;
+                            }
+                            
                             ImGui::TableNextRow();
                             ImGui::TableNextColumn();
                             ImGui::PushID(object);
@@ -126,10 +136,7 @@ namespace windows
                                     ImGui::SetNextItemOpen(false);
                             }
 
-                            const auto& objectName = object->getName();
-                            const auto objectClassName = object->getClassName();
-                            const bool isObjectHighlighted = !filter.Filters.empty() && (filter.PassFilter(objectName.c_str()) || filter.PassFilter(objectClassName.c_str()));
-
+                            
                             ImVec4 objectColor;
 
                             auto icon = ICON_FA_CUBE;
