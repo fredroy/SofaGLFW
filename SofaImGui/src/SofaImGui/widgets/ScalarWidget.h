@@ -26,14 +26,26 @@
 namespace sofaimgui
 {
 
-inline bool showScalarWidget(const std::string& label, const std::string& id, float& value)
+template<typename Scalar>
+inline bool showScalarWidget(const std::string& label, const std::string& id, Scalar& value)
 {
-    return ImGui::InputFloat((label + "##" + id).c_str(), &value, 0.0f, 0.0f, "%.8f", ImGuiInputTextFlags_None);
-}
-
-inline bool showScalarWidget(const std::string& label, const std::string& id, double& value)
-{
-    return ImGui::InputDouble((label + "##" + id).c_str(), &value, 0.0f, 0.0f, "%.8f", ImGuiInputTextFlags_None);
+    static_assert(std::is_same_v<float, Scalar> || std::is_same_v<double, Scalar>);
+    
+    // compute width for the input field, which does not compute an internal width size by itself apparently
+    static const auto scalarMinWidth = ImGui::CalcTextSize("1.00000000").x;
+    const auto valueWidth = ImGui::CalcTextSize(std::to_string(value).c_str()).x;
+    const auto itemWidth = std::max(scalarMinWidth, valueWidth) + ImGui::GetStyle().FramePadding.x * 2.0f;
+    
+    ImGui::PushItemWidth(itemWidth);
+    
+    if constexpr (std::is_same_v<float, Scalar>)
+    {
+        return ImGui::InputFloat((label + "##" + id).c_str(), &value, 0.0f, 0.0f, "%.8f", ImGuiInputTextFlags_None);
+    }
+    else
+    {
+        return ImGui::InputDouble((label + "##" + id).c_str(), &value, 0.0f, 0.0f, "%.8f", ImGuiInputTextFlags_None);
+    }
 }
 
 template<typename Scalar>
