@@ -130,6 +130,12 @@ public:
             }
         }
     }
+
+    bool isVideoRecording()
+    {
+        return m_bVideoRecording;
+    }
+
     
     void encodeFrame();
 
