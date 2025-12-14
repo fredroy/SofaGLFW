@@ -131,7 +131,7 @@ public:
         }
     }
 
-    bool isVideoRecording()
+    bool isVideoRecording() const
     {
         return m_bVideoRecording;
     }
