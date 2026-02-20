@@ -35,6 +35,7 @@
 #include <sofa/simulation/Node.h>
 #include <sofa/gl/gl.h>
 #include <sofa/gl/Texture.h>
+#include <sofa/gl/DrawToolGL.h>
 
 #include <ranges>
 
@@ -50,19 +51,27 @@ SofaGLFWWindow::SofaGLFWWindow(GLFWwindow* glfwWindow, component::visual::BaseCa
 
 void SofaGLFWWindow::close()
 {
+    if (m_bgGLInitialized)
+    {
+        glDeleteProgram(m_bgShaderProgram);
+        glDeleteVertexArrays(1, &m_bgVAO);
+        glDeleteBuffers(1, &m_bgVBO);
+        m_bgGLInitialized = false;
+    }
+
     glfwDestroyWindow(m_glfwWindow);
-    
+
     if(m_currentBackgroundTexture)
     {
         delete m_currentBackgroundTexture;
         m_currentBackgroundTexture = nullptr;
     }
-    
+
     for(auto& [_, background] : m_backgrounds)
     {
         delete background.texture;
     }
-    
+
     m_backgrounds.clear();
 }
 
@@ -75,10 +84,8 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
 
     if (!m_currentBackgroundFilename.empty())
         drawBackgroundImage();
-    
-    glEnable(GL_LIGHTING);
+
     glEnable(GL_DEPTH_TEST);
-    glDisable(GL_COLOR_MATERIAL);
 
     // draw the scene
     if (!m_currentCamera)
@@ -105,13 +112,25 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
     m_currentCamera->getOpenGLModelViewMatrix(lastModelviewMatrix);
 
     glViewport(0, 0, vparams->viewport()[2], vparams->viewport()[3]);
+
+    // Pass matrices to DrawToolGL for shader-based rendering
+    if (auto* drawToolGL = dynamic_cast<sofa::gl::DrawToolGL*>(vparams->drawTool()))
+    {
+        drawToolGL->setProjectionMatrix(lastProjectionMatrix);
+        drawToolGL->setModelViewMatrix(lastModelviewMatrix);
+        // Default headlight: directional light in view space pointing into the scene
+        drawToolGL->setLightPosition(0.0f, 0.5f, 1.0f, 0.0f);
+    }
+
+#ifndef __APPLE__
+    // Compatibility profile: also set legacy GL matrices for other renderers
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glMultMatrixd(lastProjectionMatrix);
-
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glMultMatrixd(lastModelviewMatrix);
+#endif
 
     // Update the visual params
     vparams->zNear() = m_currentCamera->getZNear();
@@ -164,62 +183,134 @@ void SofaGLFWWindow::setBackgroundImage(const std::string& filename)
 }
 
 
+void SofaGLFWWindow::initBackgroundGL()
+{
+    if (m_bgGLInitialized)
+        return;
+
+    static const char* vertSrc = R"(
+        #version 410
+        layout(location=0) in vec2 a_position;
+        layout(location=1) in vec2 a_texcoord;
+        out vec2 v_texcoord;
+        void main() {
+            gl_Position = vec4(a_position, 0.0, 1.0);
+            v_texcoord = a_texcoord;
+        }
+    )";
+
+    static const char* fragSrc = R"(
+        #version 410
+        in vec2 v_texcoord;
+        out vec4 fragColor;
+        uniform sampler2D u_texture;
+        uniform vec2 u_texScale;
+        void main() {
+            fragColor = texture(u_texture, v_texcoord * u_texScale);
+        }
+    )";
+
+    auto compileShader = [](GLenum type, const char* src) -> GLuint {
+        GLuint s = glCreateShader(type);
+        glShaderSource(s, 1, &src, nullptr);
+        glCompileShader(s);
+        GLint ok = 0;
+        glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+        if (!ok) {
+            char log[512];
+            glGetShaderInfoLog(s, 512, nullptr, log);
+            msg_error("SofaGLFWWindow") << "Background shader compile error: " << log;
+        }
+        return s;
+    };
+
+    GLuint vs = compileShader(GL_VERTEX_SHADER, vertSrc);
+    GLuint fs = compileShader(GL_FRAGMENT_SHADER, fragSrc);
+
+    m_bgShaderProgram = glCreateProgram();
+    glAttachShader(m_bgShaderProgram, vs);
+    glAttachShader(m_bgShaderProgram, fs);
+    glLinkProgram(m_bgShaderProgram);
+
+    GLint ok = 0;
+    glGetProgramiv(m_bgShaderProgram, GL_LINK_STATUS, &ok);
+    if (!ok) {
+        char log[512];
+        glGetProgramInfoLog(m_bgShaderProgram, 512, nullptr, log);
+        msg_error("SofaGLFWWindow") << "Background shader link error: " << log;
+    }
+
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    m_bgLocTexture = glGetUniformLocation(m_bgShaderProgram, "u_texture");
+    m_bgLocTexScale = glGetUniformLocation(m_bgShaderProgram, "u_texScale");
+
+    // Fullscreen quad in NDC: two triangles
+    static const float quadVerts[] = {
+        // pos.x, pos.y,  tex.x, tex.y
+        -1.f, -1.f,   0.f, 0.f,
+         1.f, -1.f,   1.f, 0.f,
+         1.f,  1.f,   1.f, 1.f,
+        -1.f, -1.f,   0.f, 0.f,
+         1.f,  1.f,   1.f, 1.f,
+        -1.f,  1.f,   0.f, 1.f,
+    };
+
+    glGenVertexArrays(1, &m_bgVAO);
+    glGenBuffers(1, &m_bgVBO);
+
+    glBindVertexArray(m_bgVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_bgVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    m_bgGLInitialized = true;
+}
+
 void SofaGLFWWindow::drawBackgroundImage()
 {
     if(!m_backgrounds.contains(m_currentBackgroundFilename))
         return;
 
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    
-    glDisable(GL_LIGHTING);
-    
     const auto& background = m_backgrounds[m_currentBackgroundFilename];
 
     if(!background.image)
         return;
-    
-    const int imageWidth = background.image->getWidth();
-    const int imageHeight = background.image->getHeight();
-    
-    int screenWidth = 0;
-    int screenHeight = 0;
-    
-    screenWidth = m_currentCamera->d_widthViewport.getValue();
-    screenHeight = m_currentCamera->d_heightViewport.getValue();
-        
-    glEnable(GL_TEXTURE_2D);
+
+    initBackgroundGL();
+    if (!m_bgGLInitialized)
+        return;
+
+    const float imageWidth  = static_cast<float>(background.image->getWidth());
+    const float imageHeight = static_cast<float>(background.image->getHeight());
+    const float screenWidth  = static_cast<float>(m_currentCamera->d_widthViewport.getValue());
+    const float screenHeight = static_cast<float>(m_currentCamera->d_heightViewport.getValue());
+
     glDisable(GL_DEPTH_TEST);
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(-0.5, screenWidth, -0.5, screenHeight, -1.0, 1.0);
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
 
+    glUseProgram(m_bgShaderProgram);
+
+    glActiveTexture(GL_TEXTURE0);
     background.texture->bind();
+    glUniform1i(m_bgLocTexture, 0);
+    glUniform2f(m_bgLocTexScale, screenWidth / imageWidth, screenHeight / imageHeight);
 
-    const double coordWidth = int(screenWidth / imageWidth) + 1;
-    const double coordHeight = int(screenHeight / imageHeight) + 1;
+    glBindVertexArray(m_bgVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
 
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glBegin(GL_QUADS);
-    glTexCoord2d(0.0,            0.0);             glVertex3d( -imageWidth*coordWidth, -imageHeight*coordHeight, 0.0 );
-    glTexCoord2d(coordWidth*2.0, 0.0);             glVertex3d(  imageWidth*coordWidth, -imageHeight*coordHeight, 0.0 );
-    glTexCoord2d(coordWidth*2.0, coordHeight*2.0); glVertex3d(  imageWidth*coordWidth,  imageHeight*coordHeight, 0.0 );
-    glTexCoord2d(0.0,            coordHeight*2.0); glVertex3d( -imageWidth*coordWidth,  imageHeight*coordHeight, 0.0 );
-    glEnd();
+    background.texture->unbind();
+    glUseProgram(0);
 
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-
-    glDisable(GL_TEXTURE_2D);
-    
-    glPopAttrib();
+    glEnable(GL_DEPTH_TEST);
 }
 
 void SofaGLFWWindow::alignCamera(sofaglfw::SofaGLFWBaseGUI* baseGUI, const CameraAlignement& align)

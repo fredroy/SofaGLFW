@@ -24,6 +24,7 @@
 
 #include <sofa/simulation/fwd.h>
 #include <sofa/component/visual/BaseCamera.h>
+#include <sofa/gl/gl.h>
 #include "SofaGLFWBaseGUI.h"
 
 struct GLFWwindow;
@@ -84,6 +85,15 @@ private:
     
     std::map<std::string, Background> m_backgrounds;
     std::string m_currentBackgroundFilename{};
+
+    // Modern GL resources for background image rendering
+    GLuint m_bgShaderProgram{0};
+    GLuint m_bgVAO{0};
+    GLuint m_bgVBO{0};
+    GLint  m_bgLocTexture{-1};
+    GLint  m_bgLocTexScale{-1};
+    bool   m_bgGLInitialized{false};
+    void   initBackgroundGL();
 };
 
 } // namespace sofaglfw

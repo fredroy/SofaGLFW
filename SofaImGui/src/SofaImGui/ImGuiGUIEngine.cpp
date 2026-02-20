@@ -911,10 +911,14 @@ void ImGuiGUIEngine::beforeDraw(GLFWwindow*)
 
 void ImGuiGUIEngine::afterDraw()
 {
-    // Clear the alpha-component of the image so it is not interpreted
-    // by imgui as a content with transparency.
+    // Scissor test may be left enabled by the scene rendering pipeline,
+    // which would restrict glClear to only part of the FBO.
+    glDisable(GL_SCISSOR_TEST);
+
+    // Clear the alpha channel of the FBO so that ImGui does not interpret
+    // the rendered content as transparent.
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
