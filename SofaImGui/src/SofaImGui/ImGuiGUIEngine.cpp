@@ -59,7 +59,6 @@
 #include <SofaImGui/UIStrings.h>
 #include <Style.h>
 #include <backends/imgui_impl_glfw.h>
-#include <backends/imgui_impl_opengl2.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <fa-regular-400.h>
 #include <fa-solid-900.h>
@@ -169,11 +168,7 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(glfwWindow, true);
 
-#if SOFAIMGUI_FORCE_OPENGL2 == 1
-    ImGui_ImplOpenGL2_Init();
-#else
-    ImGui_ImplOpenGL3_Init(nullptr);
-#endif // SOFAIMGUI_FORCE_OPENGL2 == 1
+    ImGui_ImplOpenGL3_Init("#version 410");
 
     float yscale { 1.f };
     if (GLFWmonitor* windowMonitor = findMyMonitor(glfwWindow))
@@ -351,11 +346,7 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     auto groot = baseGUI->getRootNode();
 
     // Start the Dear ImGui frame
-#if SOFAIMGUI_FORCE_OPENGL2 == 1
-    ImGui_ImplOpenGL2_NewFrame();
-#else
     ImGui_ImplOpenGL3_NewFrame();
-#endif // SOFAIMGUI_FORCE_OPENGL2 == 1
 
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -737,11 +728,7 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     windows::showSettings(windowNameSettings, settings->ini, winManagerSettings, this);
     
     ImGui::Render();
-#if SOFAIMGUI_FORCE_OPENGL2 == 1
-    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-#else
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-#endif // SOFAIMGUI_FORCE_OPENGL2 == 1
 
 
     // Update and Render additional Platform Windows
@@ -872,13 +859,8 @@ void ImGuiGUIEngine::loadFont(float yscale)
 
     io.Fonts->Build();
 
-#if SOFAIMGUI_FORCE_OPENGL2 == 1
-    ImGui_ImplOpenGL2_DestroyFontsTexture();
-    ImGui_ImplOpenGL2_CreateFontsTexture();
-#else
     ImGui_ImplOpenGL3_DestroyFontsTexture();
     ImGui_ImplOpenGL3_CreateFontsTexture();
-#endif
 }
 
 void ImGuiGUIEngine::beforeDraw(GLFWwindow*)
@@ -944,11 +926,7 @@ void ImGuiGUIEngine::terminate()
         
         glDeleteBuffers(s_NB_PBOS, m_pbos);
 
-#if SOFAIMGUI_FORCE_OPENGL2 == 1
-        ImGui_ImplOpenGL2_Shutdown();
-#else
         ImGui_ImplOpenGL3_Shutdown();
-#endif // SOFAIMGUI_FORCE_OPENGL2 == 1
 
         ImGui_ImplGlfw_Shutdown();
         ImPlot::DestroyContext();

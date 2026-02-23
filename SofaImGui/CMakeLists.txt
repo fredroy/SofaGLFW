@@ -8,9 +8,6 @@ list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/lib/cmake)
 sofa_find_package(SofaGLFW REQUIRED)
 sofa_find_package(Sofa.GL.Component.Rendering3D REQUIRED)
 
-option(SOFAIMGUI_FORCE_OPENGL2 "Force OpenGL2 mode. If false, OpenGL3 mode is activated (default)." OFF)
-
-
 sofa_fetch_dependency(imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui
         GIT_TAG        11b3a7c8ca23201294464c7f368614a9106af2a1 # v1.91.8-docking
@@ -81,7 +78,6 @@ endif()
 set(IMGUI_SOURCE_FILES
     ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp
     ${imgui_SOURCE_DIR}/imgui.cpp
     ${imgui_SOURCE_DIR}/imgui_demo.cpp
     ${imgui_SOURCE_DIR}/imgui_draw.cpp
