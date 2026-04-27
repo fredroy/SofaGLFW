@@ -21,12 +21,7 @@
 ******************************************************************************/
 #pragma once
 
-<<<<<<< HEAD
-#include <sofa/simulation/Node.h>
-#include <sofa/gl/DrawToolGL.h>
-=======
 #include <sofa/simulation/Simulation.h>
->>>>>>> 60a972a (WIP)
 #include <sofa/component/visual/BaseCamera.h>
 
 #include <SofaGLFW/BaseGUIEngine.h>
@@ -36,6 +31,10 @@
 
 #include <SofaGLFW/SofaGLFWMouseManager.h>
 #include <bgfx/c99/bgfx.h>
+
+#ifdef SOFA_HAVE_SOFA_GL
+#include <sofa/gl/VideoRecorderFFMPEG.h>
+#endif
 
 struct GLFWwindow;
 struct GLFWmonitor;
@@ -194,7 +193,9 @@ private:
     std::shared_ptr<BaseGUIEngine> m_guiEngine;
     
     bool m_bVideoRecording {false};
+#ifdef SOFA_HAVE_SOFA_GL
     sofa::gl::VideoRecorderFFMPEG m_videoRecorderFFMPEG;
+#endif
 };
 
 } // namespace sofaglfw

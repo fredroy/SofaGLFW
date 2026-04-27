@@ -213,7 +213,7 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
     init.debug = true;
 
     const auto res = bgfx_init(&init);
-    bgfx_reset(width, height, m_reset, init.resolution.format);
+    bgfx_reset(width, height, m_reset, init.resolution.formatColor);
 
     // Enable debug text.
     bgfx_set_debug(m_debug);
@@ -676,12 +676,14 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     m_viewPortHeight = m_vparams->viewport()[3];
                     m_viewPortWidth = m_vparams->viewport()[2];
                     
+#ifdef SOFA_HAVE_SOFA_GL
                     // Read framebuffer
                     if(this->groot->getAnimate() && this->m_bVideoRecording)
                     {
                         const auto [width, height] = this->m_guiEngine->getFrameBufferPixels(pixels);
                         m_videoRecorderFFMPEG.addFrame(pixels.data(), width, height);
                     }
+#endif // SOFA_HAVE_SOFA_GL
 
                     // glfwSwapBuffers(glfwWindow);
 
@@ -801,11 +803,13 @@ void SofaGLFWBaseGUI::terminate()
 
     if (m_guiEngine)
         m_guiEngine->terminate();
-
+    
+#ifdef SOFA_HAVE_SOFA_GL
     if(m_bVideoRecording)
     {
         m_videoRecorderFFMPEG.finishVideo();
     }
+#endif // SOFA_HAVE_SOFA_GL
     
     glfwTerminate();
 }
@@ -1361,6 +1365,7 @@ bool SofaGLFWBaseGUI::centerWindow(GLFWwindow* window)
 
 void SofaGLFWBaseGUI::toggleVideoRecording()
 {
+#ifdef SOFA_HAVE_SOFA_GL
     if(m_bVideoRecording)
     {
         m_bVideoRecording = false;
@@ -1387,6 +1392,7 @@ void SofaGLFWBaseGUI::toggleVideoRecording()
             msg_error("SofaGLFWBaseGUI") << "Failed to initialize recorder";
         }
     }
+#endif // SOFA_HAVE_SOFA_GL
 }
 
 bool SofaGLFWBaseGUI::initRecorder(int width, int height, unsigned int framerate, unsigned int bitrate, const std::string& codecExtension, const std::string& codecName)
@@ -1414,11 +1420,15 @@ bool SofaGLFWBaseGUI::initRecorder(int width, int height, unsigned int framerate
         " The initialization of the FFMPEG video recorder will likely fail. To fix this, provide a valid path to the ffmpeg executable inside this file using the syntax \"FFMPEG_EXEC_PATH=/usr/bin/ffmpeg\".";
     }
 
+#ifdef SOFA_HAVE_SOFA_GL
     const std::string videoFilename = m_videoRecorderFFMPEG.findFilename(framerate, bitrate / 1024, codecExtension);
 
     res = m_videoRecorderFFMPEG.init(ffmpeg_exec_path, videoFilename, width, height, framerate, bitrate, codecName);
 
     return res;
+#else
+    return false;
+#endif
 }
 
 
