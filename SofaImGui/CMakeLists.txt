@@ -161,7 +161,12 @@ target_include_directories(${PROJECT_NAME} PUBLIC "$<BUILD_INTERFACE:${IMGUI_SOU
 target_include_directories(${PROJECT_NAME} PRIVATE "$<BUILD_INTERFACE:${imoguizmo_SOURCE_DIR}>")
 target_link_libraries(${PROJECT_NAME} PUBLIC SofaGLFW Sofa.GL.Component.Rendering3D ${CMAKE_DL_LIBS})
 target_link_libraries(${PROJECT_NAME} PRIVATE SimpleIni::SimpleIni)
-target_link_libraries(${PROJECT_NAME} PRIVATE nfd::nfd)
+
+if (EXISTS nfd)
+    target_link_libraries(${PROJECT_NAME} PRIVATE nfd)
+else()
+    target_link_libraries(${PROJECT_NAME} PRIVATE nfd::nfd)
+endif()
 
 # setup the same API exports for imgui
 target_compile_definitions(${PROJECT_NAME} PUBLIC IMGUI_API=SOFAIMGUI_API)
