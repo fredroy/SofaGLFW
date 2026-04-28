@@ -24,7 +24,9 @@
 
 #include <memory>
 #include <SofaGLFW/BaseGUIEngine.h>
+#if SOFAIMGUI_USE_BGFX != 1
 #include <sofa/gl/FrameBufferObject.h>
+#endif
 
 #include "guis/AdditionalGUIRegistry.h"
 #include "windows/WindowState.h"
@@ -79,8 +81,10 @@ public:
     void saveScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI);
 
 protected:
+#if SOFAIMGUI_USE_BGFX != 1
     std::unique_ptr<sofa::gl::FrameBufferObject> m_fbo;
     std::pair<unsigned int, unsigned int> m_currentFBOSize;
+#endif
     std::pair<float, float> m_viewportWindowSize;
     bool isMouseOnViewport { false };
 
@@ -114,9 +118,11 @@ protected:
     unsigned long m_screenshotCounter{0};
     bool m_isTerminated{ false };
     std::size_t m_frameCount{0};
+#if SOFAIMGUI_USE_BGFX != 1
     static inline constexpr int s_NB_PBOS = 2;
     GLuint m_pbos[s_NB_PBOS];
     sofa::type::Vec2i m_pboSize;
+#endif
 };
 
 } // namespace sofaimgui

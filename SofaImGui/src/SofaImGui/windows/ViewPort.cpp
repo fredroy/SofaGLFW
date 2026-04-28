@@ -42,6 +42,7 @@
 namespace windows
 {
 
+#if SOFAIMGUI_USE_BGFX != 1
     void showViewPort(sofa::core::sptr<sofa::simulation::Node> groot,
                       const char* const& windowNameViewport,
                       const CSimpleIniA &ini,
@@ -337,6 +338,7 @@ namespace windows
         }
 
     }
+#endif // SOFAIMGUI_USE_BGFX != 1
 
     bool hasViewportMoved(const float currentX, const float currentY, const float lastX, const float lastY, const float threshold)
     {

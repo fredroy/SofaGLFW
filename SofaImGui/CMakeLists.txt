@@ -13,6 +13,13 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(SOFAIMGUI_FORCE_OPENGL2 ON CACHE BOOL "" FORCE)
 endif()
 
+sofa_find_package(BGFXPlugin QUIET)
+if(BGFXPlugin_FOUND)
+    set(SOFAIMGUI_USE_BGFX ON)
+else()
+    set(SOFAIMGUI_USE_BGFX OFF)
+endif()
+
 
 sofa_fetch_dependency(imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui
@@ -81,10 +88,10 @@ elseif(NOT TARGET SimpleIni::SimpleIni)
     message(FATAL_ERROR "{PROJECT_NAME}: SimpleIni not found and SOFA_ALLOW_FETCH_DEPENDENCIES is OFF and thus cannot be fetched. Install SimpleIni, or enable SOFA_ALLOW_FETCH_DEPENDENCIES to fix this issue.")
 endif()
 
+set(SOFAIMGUI_SOURCE_DIR src/SofaImGui)
+
 set(IMGUI_SOURCE_FILES
     ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp
     ${imgui_SOURCE_DIR}/imgui.cpp
     ${imgui_SOURCE_DIR}/imgui_demo.cpp
     ${imgui_SOURCE_DIR}/imgui_draw.cpp
@@ -96,7 +103,16 @@ set(IMGUI_SOURCE_FILES
     resources/Style.cpp
 )
 
-set(SOFAIMGUI_SOURCE_DIR src/SofaImGui)
+if(SOFAIMGUI_USE_BGFX)
+    list(APPEND IMGUI_SOURCE_FILES
+        ${SOFAIMGUI_SOURCE_DIR}/imgui_impl_bgfx.cpp
+    )
+else()
+    list(APPEND IMGUI_SOURCE_FILES
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp
+    )
+endif()
 
 set(HEADER_FILES
     ${SOFAIMGUI_SOURCE_DIR}/config.h.in
@@ -165,6 +181,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE nfd::nfd)
 
 if(Sofa.GL.Component.Rendering3D_FOUND)
     target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.GL.Component.Rendering3D)
+endif()
+
+if(SOFAIMGUI_USE_BGFX)
+    target_link_libraries(${PROJECT_NAME} PUBLIC BGFXPlugin)
 endif()
 
 # setup the same API exports for imgui
