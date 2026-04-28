@@ -21,12 +21,7 @@
 ******************************************************************************/
 #pragma once
 
-#include <sofa/simulation/Node.h>
 #include <SofaImGui/config.h>
-
-#include <memory>
-#include <SofaGLFW/BaseGUIEngine.h>
-#include <sofa/gl/FrameBufferObject.h>
 
 #include <imgui.h>
 #include <sofa/simulation/Node.h>
