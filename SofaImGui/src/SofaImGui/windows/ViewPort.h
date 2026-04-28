@@ -21,6 +21,7 @@
 ******************************************************************************/
 #pragma once
 
+#include <SofaImGui/config.h>
 #include <sofa/simulation/Node.h>
 #include "WindowState.h"
 #include <SimpleIni.h>
@@ -28,6 +29,7 @@
 namespace windows
 {
 
+#if SOFAIMGUI_USE_BGFX != 1
         /**
          * @brief Displays the viewport window.
          *
@@ -55,6 +57,7 @@ namespace windows
                           sofaglfw::SofaGLFWBaseGUI* baseGUI,
                           bool& isViewportDisplayedForTheFirstTime,
                           sofa::type::Vec2f& lastViewPortPos);
+#endif
 
         /**
          * @brief Checks if the viewport position has moved beyond a specified threshold.
