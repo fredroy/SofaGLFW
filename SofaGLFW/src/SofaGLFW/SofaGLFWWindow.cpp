@@ -122,18 +122,6 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
 
     sofa::simulation::node::draw(vparams, groot.get());
 
-    // Advance to next frame. Rendering thread will be kicked to
-    // process submitted rendering primitives.
-
-    try
-    {
-        bgfx_frame(false);
-    }
-    catch (std::exception e)
-    {
-        std::cout << e.what() << std::endl;
-    }
-
 }
 
 void SofaGLFWWindow::setBackgroundColor(const RGBAColor& newColor)
