@@ -150,7 +150,7 @@ public:
 #endif
     
     uint32_t m_debug = BGFX_DEBUG_NONE;
-    uint32_t m_reset = BGFX_RESET_VSYNC;
+    uint32_t m_reset = BGFX_RESET_VSYNC | BGFX_RESET_HIDPI;
 
 private:
     // GLFW callbacks
@@ -168,6 +168,7 @@ private:
     static int handleArrowKeys(int key);
     static void translateToViewportCoordinates (SofaGLFWBaseGUI* gui,double xpos, double ypos);
     static void content_scale_callback(GLFWwindow* window, float xscale, float yscale);
+    static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
     void makeCurrentContext(GLFWwindow* sofaWindow);
     void runStep();

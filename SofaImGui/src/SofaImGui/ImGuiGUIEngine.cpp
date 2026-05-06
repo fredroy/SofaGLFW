@@ -933,10 +933,17 @@ void ImGuiGUIEngine::loadFont(float yscale)
 #endif
 }
 
-void ImGuiGUIEngine::beforeDraw(GLFWwindow*)
+void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
 {
 #if SOFAIMGUI_USE_BGFX == 1
     bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x000000ff, 1.0f, 0);
+    int winWidth, winHeight;
+    glfwGetWindowSize(glfwWindow, &winWidth, &winHeight);
+    float xscale = 1.0f, yscale = 1.0f;
+    glfwGetWindowContentScale(glfwWindow, &xscale, &yscale);
+    const int fbWidth = static_cast<int>(winWidth * xscale);
+    const int fbHeight = static_cast<int>(winHeight * yscale);
+    sofa::core::visual::VisualParams::defaultInstance()->viewport() = {0, 0, fbWidth, fbHeight};
 #else
     glClearColor(0,0,0,1);
     glClear(GL_COLOR_BUFFER_BIT);

@@ -200,7 +200,7 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
 {
    // m_debug = BGFX_DEBUG_NONE;
     m_debug = BGFX_DEBUG_TEXT;
-    m_reset = BGFX_RESET_VSYNC; // enable vsync
+    m_reset = BGFX_RESET_VSYNC | BGFX_RESET_HIDPI;
     //m_reset = BGFX_RESET_NONE; // disable vsync
 
     bgfx_init_t init;
@@ -212,8 +212,25 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
     init.platformData.type = getNativeWindowHandleType();
     init.debug = true;
 
+    int fbWidth, fbHeight;
+    glfwGetFramebufferSize(glfwWindow, &fbWidth, &fbHeight);
+    float xscale = 1.0f, yscale = 1.0f;
+    glfwGetWindowContentScale(glfwWindow, &xscale, &yscale);
+    const int scaledWidth = static_cast<int>(width * xscale);
+    const int scaledHeight = static_cast<int>(height * yscale);
+
+    msg_info("SofaGLFWBaseGUI") << "initEngine: windowSize=" << width << "x" << height
+        << " fbSize=" << fbWidth << "x" << fbHeight
+        << " contentScale=" << xscale << "x" << yscale
+        << " scaledSize=" << scaledWidth << "x" << scaledHeight;
+
+    init.resolution.width = fbWidth;
+    init.resolution.height = fbHeight;
+    init.resolution.reset = m_reset;
+
     const auto res = bgfx_init(&init);
-    bgfx_reset(width, height, m_reset, init.resolution.formatColor);
+
+    bgfx_reset(fbWidth, fbHeight, m_reset, init.resolution.formatColor);
 
     // Enable debug text.
     bgfx_set_debug(m_debug);
@@ -462,19 +479,21 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
         glfwSetMonitorCallback(monitor_callback);
         glfwSetCharCallback(glfwWindow, character_callback);
         glfwSetWindowContentScaleCallback(glfwWindow, content_scale_callback);
+        glfwSetFramebufferSizeCallback(glfwWindow, framebuffer_size_callback);
 
         glfwSetWindowUserPointer(glfwWindow, this);
 
         makeCurrentContext(glfwWindow);
-        
+
+        s_mapGUIs[glfwWindow] = this;
+
         initEngine(width, height, glfwWindow);
-        
+
         m_guiEngine->initBackend(glfwWindow);
 
         SofaGLFWWindow* sofaWindow = new SofaGLFWWindow(glfwWindow, this->currentCamera);
 
         s_mapWindows[glfwWindow] = sofaWindow;
-        s_mapGUIs[glfwWindow] = this;
 
         return true;
     }
@@ -1170,6 +1189,22 @@ void SofaGLFWBaseGUI::content_scale_callback(GLFWwindow *window, float xscale, f
     if (currentGUI && currentGUI->m_guiEngine)
     {
         currentGUI->m_guiEngine->contentScaleChanged(xscale, yscale);
+    }
+}
+
+void SofaGLFWBaseGUI::framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+    SOFA_UNUSED(width);
+    SOFA_UNUSED(height);
+    auto currentGUI = s_mapGUIs[window];
+    if (currentGUI)
+    {
+        int w, h;
+        glfwGetWindowSize(window, &w, &h);
+        float xscale = 1.0f, yscale = 1.0f;
+        glfwGetWindowContentScale(window, &xscale, &yscale);
+        bgfx_reset(static_cast<uint32_t>(w * xscale), static_cast<uint32_t>(h * yscale),
+                   currentGUI->m_reset, BGFX_TEXTURE_FORMAT_COUNT);
     }
 }
 
