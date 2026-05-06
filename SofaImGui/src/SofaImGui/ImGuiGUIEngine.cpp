@@ -134,7 +134,9 @@ void ImGuiGUIEngine::init()
     io.IniFilename = imguiIniFile.c_str();
 
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+#if SOFAIMGUI_USE_BGFX != 1
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+#endif
 
     settings = std::make_unique<Settings>();
     settings->ini.SetUnicode();
@@ -175,6 +177,8 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
 #if SOFAIMGUI_USE_BGFX == 1
     ImGui_ImplGlfw_InitForOther(glfwWindow, true);
     ImGui_Implbgfx_Init(255);
+    bgfx_set_view_clear(255, BGFX_CLEAR_NONE, 0, 1.0f, 0);
+    bgfx_set_view_mode(255, BGFX_VIEW_MODE_SEQUENTIAL);
 #else
     ImGui_ImplGlfw_InitForOpenGL(glfwWindow, true);
 #if SOFAIMGUI_FORCE_OPENGL2 == 1
@@ -772,7 +776,15 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     
     ImGui::Render();
 #if SOFAIMGUI_USE_BGFX == 1
-    ImGui_Implbgfx_RenderDrawLists(ImGui::GetDrawData());
+    {
+        ImDrawData* dd = ImGui::GetDrawData();
+        const uint16_t w = static_cast<uint16_t>(dd->DisplaySize.x * dd->FramebufferScale.x);
+        const uint16_t h = static_cast<uint16_t>(dd->DisplaySize.y * dd->FramebufferScale.y);
+        bgfx_set_view_rect(255, 0, 0, w, h);
+        bgfx_touch(255);
+        ImGui_Implbgfx_RenderDrawLists(dd);
+    }
+    bgfx_frame(false);
 #elif SOFAIMGUI_FORCE_OPENGL2 == 1
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 #else
@@ -780,11 +792,13 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
 #endif
 
     // Update and Render additional Platform Windows
+#if SOFAIMGUI_USE_BGFX != 1
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
     }
+#endif
 
     m_frameCount++;
 
