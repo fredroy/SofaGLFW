@@ -214,15 +214,6 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
 
     int fbWidth, fbHeight;
     glfwGetFramebufferSize(glfwWindow, &fbWidth, &fbHeight);
-    float xscale = 1.0f, yscale = 1.0f;
-    glfwGetWindowContentScale(glfwWindow, &xscale, &yscale);
-    const int scaledWidth = static_cast<int>(width * xscale);
-    const int scaledHeight = static_cast<int>(height * yscale);
-
-    msg_info("SofaGLFWBaseGUI") << "initEngine: windowSize=" << width << "x" << height
-        << " fbSize=" << fbWidth << "x" << fbHeight
-        << " contentScale=" << xscale << "x" << yscale
-        << " scaledSize=" << scaledWidth << "x" << scaledHeight;
 
     init.resolution.width = fbWidth;
     init.resolution.height = fbHeight;

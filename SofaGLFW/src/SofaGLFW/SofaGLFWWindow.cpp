@@ -70,8 +70,10 @@ void SofaGLFWWindow::close()
 
 void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams* vparams)
 {
-    std::size_t width = vparams->viewport()[2];
-    std::size_t height = vparams->viewport()[3];
+    const uint16_t vpX = static_cast<uint16_t>(vparams->viewport()[0]);
+    const uint16_t vpY = static_cast<uint16_t>(vparams->viewport()[1]);
+    const uint16_t width = static_cast<uint16_t>(vparams->viewport()[2]);
+    const uint16_t height = static_cast<uint16_t>(vparams->viewport()[3]);
 
     // draw the scene
     if (!m_currentCamera)
@@ -99,8 +101,7 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
 
         bgfx_set_view_transform(0, view, proj);
 
-        // Set view 0 default viewport.
-        bgfx_set_view_rect(0, 0, 0, uint16_t(width), uint16_t(height));
+        bgfx_set_view_rect(0, vpX, vpY, width, height);
 
         // Update the visual params
         vparams->zNear() = m_currentCamera->getZNear();
