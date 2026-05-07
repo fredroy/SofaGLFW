@@ -1003,14 +1003,19 @@ void ImGuiGUIEngine::terminate()
     if (!this->isTerminated())
     {
         // store window state (position and size)
-        const auto lastWindowPos = ImGui::GetMainViewport()->Pos;
-        const auto lastWindowSize = ImGui::GetMainViewport()->Size;
+        GLFWwindow* window = static_cast<GLFWwindow*>(ImGui::GetMainViewport()->PlatformHandle);
+        int winPosX = 0, winPosY = 0, winSizeX = 0, winSizeY = 0;
+        if (window)
+        {
+            glfwGetWindowPos(window, &winPosX, &winPosY);
+            glfwGetWindowSize(window, &winSizeX, &winSizeY);
+        }
 
         // save latest window state
-        settings->ini.SetLongValue("Window", "windowPosX", static_cast<long>(lastWindowPos.x));
-        settings->ini.SetLongValue("Window", "windowPosY", static_cast<long>(lastWindowPos.y));
-        settings->ini.SetLongValue("Window", "windowSizeX", static_cast<long>(lastWindowSize.x));
-        settings->ini.SetLongValue("Window", "windowSizeY", static_cast<long>(lastWindowSize.y));
+        settings->ini.SetLongValue("Window", "windowPosX", static_cast<long>(winPosX));
+        settings->ini.SetLongValue("Window", "windowPosY", static_cast<long>(winPosY));
+        settings->ini.SetLongValue("Window", "windowSizeX", static_cast<long>(winSizeX));
+        settings->ini.SetLongValue("Window", "windowSizeY", static_cast<long>(winSizeY));
         [[maybe_unused]] SI_Error rc = settings->ini.SaveFile(sofaimgui::AppIniFile::getAppIniFile().c_str());
 
         NFD_Quit();
