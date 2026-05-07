@@ -179,6 +179,11 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
     ImGui_Implbgfx_Init(255);
     bgfx_set_view_clear(255, BGFX_CLEAR_NONE, 0, 1.0f, 0);
     bgfx_set_view_mode(255, BGFX_VIEW_MODE_SEQUENTIAL);
+    {
+        int w, h;
+        glfwGetFramebufferSize(glfwWindow, &w, &h);
+        m_viewportRect = {0, 0, w, h};
+    }
 #else
     ImGui_ImplGlfw_InitForOpenGL(glfwWindow, true);
 #if SOFAIMGUI_FORCE_OPENGL2 == 1
@@ -415,6 +420,18 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
 
     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
     ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_NoDockingInCentralNode);
+
+#if SOFAIMGUI_USE_BGFX == 1
+    if (ImGuiDockNode* centralNode = ImGui::DockBuilderGetCentralNode(dockspace_id))
+    {
+        m_viewportRect = {
+            static_cast<int>(centralNode->Pos.x - viewport->Pos.x),
+            static_cast<int>(centralNode->Pos.y - viewport->Pos.y),
+            static_cast<int>(centralNode->Size.x),
+            static_cast<int>(centralNode->Size.y)
+        };
+    }
+#endif
 
     static constexpr auto windowNameViewport = ICON_FA_DICE_D6 "  Viewport";
     static constexpr auto windowNamePerformances = ICON_FA_CHART_LINE "  Performances";
@@ -936,14 +953,10 @@ void ImGuiGUIEngine::loadFont(float yscale)
 void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
 {
 #if SOFAIMGUI_USE_BGFX == 1
+    SOFA_UNUSED(glfwWindow);
     bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x000000ff, 1.0f, 0);
-    int winWidth, winHeight;
-    glfwGetWindowSize(glfwWindow, &winWidth, &winHeight);
-    float xscale = 1.0f, yscale = 1.0f;
-    glfwGetWindowContentScale(glfwWindow, &xscale, &yscale);
-    const int fbWidth = static_cast<int>(winWidth * xscale);
-    const int fbHeight = static_cast<int>(winHeight * yscale);
-    sofa::core::visual::VisualParams::defaultInstance()->viewport() = {0, 0, fbWidth, fbHeight};
+    sofa::core::visual::VisualParams::defaultInstance()->viewport() = {
+        m_viewportRect[0], m_viewportRect[1], m_viewportRect[2], m_viewportRect[3]};
 #else
     glClearColor(0,0,0,1);
     glClear(GL_COLOR_BUFFER_BIT);
