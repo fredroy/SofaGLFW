@@ -22,6 +22,7 @@
 #pragma once
 #include <SofaImGui/config.h>
 
+#include <array>
 #include <memory>
 #include <SofaGLFW/BaseGUIEngine.h>
 #if SOFAIMGUI_USE_BGFX != 1
@@ -86,6 +87,7 @@ protected:
     std::pair<unsigned int, unsigned int> m_currentFBOSize;
 #endif
     std::pair<float, float> m_viewportWindowSize;
+    std::array<int, 4> m_viewportRect {}; // x, y, w, h in pixels for bgfx view 0
     bool isMouseOnViewport { false };
 
     struct Settings;
