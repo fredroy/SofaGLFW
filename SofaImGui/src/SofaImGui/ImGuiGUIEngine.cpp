@@ -228,7 +228,13 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
         }
     }
 
-#if SOFAIMGUI_USE_BGFX != 1
+#if SOFAIMGUI_USE_BGFX == 1
+    if (auto* baseGUI = static_cast<sofaglfw::SofaGLFWBaseGUI*>(glfwGetWindowUserPointer(glfwWindow)))
+    {
+        const bool vsync = settings->ini.GetBoolValue("Rendering", "vsync", true);
+        baseGUI->setVsync(vsync);
+    }
+#else
     glGenBuffers(s_NB_PBOS, m_pbos);
 #endif
 }
@@ -809,7 +815,7 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Settings window
      **************************************/
-    windows::showSettings(windowNameSettings, settings->ini, winManagerSettings, this);
+    windows::showSettings(windowNameSettings, settings->ini, winManagerSettings, this, baseGUI);
 
     /***************************************
      * Mapping Graph window
