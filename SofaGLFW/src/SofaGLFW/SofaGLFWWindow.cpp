@@ -176,7 +176,7 @@ void SofaGLFWWindow::setBackgroundImage(const std::string& filename)
                 return;
             }
 
-            auto tex = std::make_unique<bgfxplugin::Texture>(backgroundImage, false, true, false);
+            auto tex = std::make_unique<bgfxplugin::Texture>(backgroundImage, true, true, false);
             tex->init();
             if (tex->isValid())
             {
@@ -221,11 +221,24 @@ bool SofaGLFWWindow::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vp
     const float x1 = static_cast<float>(vpX + vpW);
     const float y1 = static_cast<float>(vpY + vpH);
 
+    float uMax = 1.0f;
+    float vMax = 1.0f;
+    if (auto* img = background.texture->getImage())
+    {
+        const float texW = static_cast<float>(img->getWidth());
+        const float texH = static_cast<float>(img->getHeight());
+        if (texW > 0.0f && texH > 0.0f)
+        {
+            uMax = static_cast<float>(vpW) / texW;
+            vMax = static_cast<float>(vpH) / texH;
+        }
+    }
+
     constexpr uint32_t white = 0xFFFFFFFF;
     const PosTexColorVertex vertices[] = {
-        { x0, y0, 0.0f, 1.0f, white },
-        { x1, y0, 1.0f, 1.0f, white },
-        { x1, y1, 1.0f, 0.0f, white },
+        { x0, y0, 0.0f, vMax, white },
+        { x1, y0, uMax, vMax, white },
+        { x1, y1, uMax, 0.0f, white },
         { x0, y1, 0.0f, 0.0f, white },
     };
     const uint16_t indices[] = { 0, 1, 2, 0, 2, 3 };
