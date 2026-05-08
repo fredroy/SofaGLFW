@@ -38,7 +38,8 @@ namespace windows
     void showSettings(const char* const& windowNameSettings,
                       CSimpleIniA &ini,
                       WindowState& winManagerSettings,
-                      sofaimgui::ImGuiGUIEngine* engine)
+                      sofaimgui::ImGuiGUIEngine* engine,
+                      sofaglfw::SofaGLFWBaseGUI* baseGUI)
     {
         if (*winManagerSettings.getStatePtr())
         {
@@ -109,6 +110,17 @@ namespace windows
                 {
                     ini.SetBoolValue("Window", "rememberWindowSize", rememberWindowSize);
                     [[maybe_unused]] SI_Error rc = ini.SaveFile(sofaimgui::AppIniFile::getAppIniFile().c_str());
+                }
+
+                if (baseGUI)
+                {
+                    bool vsync = baseGUI->isVsync();
+                    if (ImGui::Checkbox("VSync", &vsync))
+                    {
+                        baseGUI->setVsync(vsync);
+                        ini.SetBoolValue("Rendering", "vsync", vsync);
+                        [[maybe_unused]] SI_Error rc = ini.SaveFile(sofaimgui::AppIniFile::getAppIniFile().c_str());
+                    }
                 }
 
             }
