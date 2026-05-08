@@ -340,6 +340,126 @@ namespace windows
     }
 #endif // SOFAIMGUI_USE_BGFX != 1
 
+    void showViewPortOverlay(sofa::core::sptr<sofa::simulation::Node> groot,
+                             const CSimpleIniA &ini,
+                             sofaglfw::SofaGLFWBaseGUI* baseGUI,
+                             const std::array<int, 4>& viewportRect)
+    {
+        if (!ini.GetBoolValue("Visualization", "showViewportSettingsButton", true))
+            return;
+
+        static constexpr ImGuiWindowFlags window_flags =
+            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration |
+            ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_AlwaysAutoResize |
+            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+            ImGuiWindowFlags_NoNav;
+
+        ImVec2 pos(static_cast<float>(viewportRect[0]) + 10.0f,
+                   static_cast<float>(viewportRect[1]) + 10.0f);
+        ImGui::SetNextWindowPos(pos);
+
+        static const auto createdByGuiTag = sofa::core::objectmodel::Tag("createdByGUI");
+
+        if (ImGui::Begin("viewportSettingsMenuWindow", nullptr, window_flags))
+        {
+            if (ImGui::Button(ICON_FA_CAMERA))
+            {
+                auto guiEnginePtr = std::static_pointer_cast<sofaimgui::ImGuiGUIEngine>(baseGUI->getGUIEngine());
+                if (guiEnginePtr)
+                    guiEnginePtr->saveScreenshot(baseGUI);
+            }
+
+            if (baseGUI->isVideoRecording())
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ImColor(255, 0, 0)));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ImColor(255, 0, 0)));
+            }
+            else
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_Button]);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered]);
+            }
+            if (ImGui::Button(ICON_FA_VIDEO))
+            {
+                baseGUI->toggleVideoRecording();
+            }
+            ImGui::PopStyleColor(2);
+
+            if (ImGui::Button(ICON_FA_GEAR))
+            {
+                ImGui::OpenPopup("viewportSettingsMenu");
+            }
+
+            if (ImGui::BeginPopup("viewportSettingsMenu"))
+            {
+                if (ImGui::Selectable(ICON_FA_BORDER_ALL "  Show Grid"))
+                {
+                    auto grid = groot->get<sofa::component::visual::VisualGrid>(createdByGuiTag);
+                    if (!grid)
+                    {
+                        auto newGrid = sofa::core::objectmodel::New<sofa::component::visual::VisualGrid>();
+                        groot->addObject(newGrid);
+                        newGrid->setName("viewportGrid");
+                        newGrid->addTag(createdByGuiTag);
+                        newGrid->d_enable.setValue(true);
+                        auto box = groot->f_bbox.getValue().maxBBox() - groot->f_bbox.getValue().minBBox();
+                        newGrid->d_size.setValue(*std::max_element(box.begin(), box.end()));
+                        newGrid->init();
+                    }
+                    else
+                    {
+                        grid->d_enable.setValue(!grid->d_enable.getValue());
+                    }
+                }
+                if (ImGui::Selectable(ICON_FA_UP_DOWN_LEFT_RIGHT "  Show Axis"))
+                {
+                    sofaglfw::SofaGLFWBaseGUI::triggerSceneAxis(groot);
+                }
+                if (ImGui::Selectable(ICON_FA_CUBE "  Show Bounding Box"))
+                {
+                    auto bboxVM = groot->get<sofa::component::visual::VisualBoundingBox>(createdByGuiTag);
+                    if (!bboxVM)
+                    {
+                        auto newBBoxVM = sofa::core::objectmodel::New<sofa::component::visual::VisualBoundingBox>();
+                        groot->addObject(newBBoxVM);
+                        newBBoxVM->setName("VisualBBox");
+                        newBBoxVM->addTag(createdByGuiTag);
+                        newBBoxVM->d_enable.setValue(true);
+                        newBBoxVM->f_bbox.setParent(&groot->f_bbox);
+                        newBBoxVM->d_color.setValue(sofa::type::RGBAColor::yellow());
+                        newBBoxVM->d_thickness.setValue(10.0f);
+                    }
+                    else
+                    {
+                        bboxVM->d_enable.setValue(!bboxVM->d_enable.getValue());
+                    }
+                }
+                if (ImGui::BeginMenu(ICON_FA_ARROW_POINTER " Selection parameters"))
+                {
+                    ImGui::Checkbox("Enable selection drawing", &baseGUI->m_enableSelectionDraw);
+                    ImGui::Checkbox("Show Node bounding box", &baseGUI->m_showSelectedNodeBoundingBox);
+                    ImGui::Checkbox("Show Object bounding box", &baseGUI->m_showSelectedObjectBoundingBox);
+                    ImGui::Checkbox("Show Object position", &baseGUI->m_showSelectedObjectPositions);
+                    ImGui::Checkbox("Show Object surface", &baseGUI->m_showSelectedObjectSurfaces);
+                    ImGui::Checkbox("Show Object volume", &baseGUI->m_showSelectedObjectVolumes);
+                    ImGui::Checkbox("Show Object indices", &baseGUI->m_showSelectedObjectIndices);
+                    ImGui::InputFloat("Visual scaling", &baseGUI->m_visualScaling);
+                    ImGui::EndMenu();
+                }
+                sofa::component::visual::VisualStyle::SPtr visualStyle = nullptr;
+                groot->get(visualStyle);
+                if (visualStyle && ImGui::BeginMenu(ICON_FA_EYE " Display flags"))
+                {
+                    sofaimgui::showDisplayFlagsWidget(visualStyle->d_displayFlags);
+                    ImGui::EndMenu();
+                }
+
+                ImGui::EndPopup();
+            }
+        }
+        ImGui::End();
+    }
+
     bool hasViewportMoved(const float currentX, const float currentY, const float lastX, const float lastY, const float threshold)
     {
         return std::fabs(currentX - lastX) > threshold || std::fabs(currentY - lastY) > threshold;
