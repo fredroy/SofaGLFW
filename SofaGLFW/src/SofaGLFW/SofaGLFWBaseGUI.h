@@ -155,7 +155,11 @@ public:
     void setVsync(bool enabled);
     bool isVsync() const { return (m_reset & BGFX_RESET_VSYNC) != 0; }
 
+    void setMsaa(int level);
+    int getMsaa() const;
+
 private:
+    void applyReset();
     // GLFW callbacks
     static void error_callback(int error, const char* description);
     static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);

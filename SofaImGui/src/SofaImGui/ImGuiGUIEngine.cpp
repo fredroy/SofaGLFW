@@ -228,6 +228,8 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
     if (auto* baseGUI = static_cast<sofaglfw::SofaGLFWBaseGUI*>(glfwGetWindowUserPointer(glfwWindow)))
     {
         const bool vsync = settings->ini.GetBoolValue("Rendering", "vsync", true);
+        const int msaa = static_cast<int>(settings->ini.GetLongValue("Rendering", "msaa", 0));
+        baseGUI->setMsaa(msaa);
         baseGUI->setVsync(vsync);
     }
 #else
