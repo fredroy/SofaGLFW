@@ -185,6 +185,81 @@ endif()
 
 if(SOFAIMGUI_USE_BGFX)
     target_link_libraries(${PROJECT_NAME} PUBLIC BGFXPlugin)
+
+    # Shader compilation
+    set(SOFAIMGUI_SHADER_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/src")
+    set(SOFAIMGUI_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders")
+    set(BGFX_SHADER_INCLUDE_PATH "${bgfx_SOURCE_DIR}/bgfx/src")
+
+    if(APPLE)
+        set(SOFAIMGUI_SHADER_PLATFORM "osx")
+        set(SOFAIMGUI_SHADER_PROFILES metal 120)
+        set(SOFAIMGUI_SHADER_PROFILE_DIRS metal glsl)
+    elseif(WIN32)
+        set(SOFAIMGUI_SHADER_PLATFORM "windows")
+        set(SOFAIMGUI_SHADER_PROFILES s_5_0 spirv 120)
+        set(SOFAIMGUI_SHADER_PROFILE_DIRS dxbc spirv glsl)
+    elseif(UNIX)
+        set(SOFAIMGUI_SHADER_PLATFORM "linux")
+        set(SOFAIMGUI_SHADER_PROFILES spirv 120)
+        set(SOFAIMGUI_SHADER_PROFILE_DIRS spirv glsl)
+    endif()
+
+    set(SOFAIMGUI_SHADER_SOURCES
+        vs_imgui VERTEX varying_imgui.def.sc
+        fs_imgui FRAGMENT varying_imgui.def.sc
+    )
+
+    set(SOFAIMGUI_ALL_SHADER_OUTPUTS "")
+
+    list(LENGTH SOFAIMGUI_SHADER_SOURCES SOFAIMGUI_SHADER_SOURCES_LEN)
+    math(EXPR SOFAIMGUI_SHADER_SOURCES_LAST "${SOFAIMGUI_SHADER_SOURCES_LEN} - 1")
+
+    foreach(IDX RANGE 0 ${SOFAIMGUI_SHADER_SOURCES_LAST} 3)
+        math(EXPR TYPE_IDX "${IDX} + 1")
+        math(EXPR VARYING_IDX "${IDX} + 2")
+        list(GET SOFAIMGUI_SHADER_SOURCES ${IDX} SHADER_NAME)
+        list(GET SOFAIMGUI_SHADER_SOURCES ${TYPE_IDX} SHADER_TYPE)
+        list(GET SOFAIMGUI_SHADER_SOURCES ${VARYING_IDX} VARYING_FILE)
+
+        string(TOLOWER ${SHADER_TYPE} SHADER_TYPE_LOWER)
+
+        list(LENGTH SOFAIMGUI_SHADER_PROFILES PROFILE_COUNT)
+        math(EXPR PROFILE_LAST "${PROFILE_COUNT} - 1")
+
+        foreach(PIDX RANGE 0 ${PROFILE_LAST})
+            list(GET SOFAIMGUI_SHADER_PROFILES ${PIDX} PROFILE)
+            list(GET SOFAIMGUI_SHADER_PROFILE_DIRS ${PIDX} PROFILE_DIR)
+
+            set(OUTPUT_FILE "${SOFAIMGUI_SHADER_OUTPUT_DIR}/${PROFILE_DIR}/${SHADER_NAME}.bin")
+
+            add_custom_command(
+                OUTPUT "${OUTPUT_FILE}"
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${SOFAIMGUI_SHADER_OUTPUT_DIR}/${PROFILE_DIR}"
+                COMMAND bgfx::shaderc
+                    -f "${SOFAIMGUI_SHADER_SRC_DIR}/${SHADER_NAME}.sc"
+                    -o "${OUTPUT_FILE}"
+                    --type ${SHADER_TYPE_LOWER}
+                    --platform ${SOFAIMGUI_SHADER_PLATFORM}
+                    --profile ${PROFILE}
+                    --varyingdef "${SOFAIMGUI_SHADER_SRC_DIR}/${VARYING_FILE}"
+                    -i "${BGFX_SHADER_INCLUDE_PATH}"
+                    -i "${SOFAIMGUI_SHADER_SRC_DIR}"
+                DEPENDS "${SOFAIMGUI_SHADER_SRC_DIR}/${SHADER_NAME}.sc" "${SOFAIMGUI_SHADER_SRC_DIR}/${VARYING_FILE}"
+                COMMENT "Compiling shader ${SHADER_NAME} (${PROFILE})"
+                VERBATIM
+            )
+
+            list(APPEND SOFAIMGUI_ALL_SHADER_OUTPUTS "${OUTPUT_FILE}")
+        endforeach()
+    endforeach()
+
+    add_custom_target(${PROJECT_NAME}_shaders ALL DEPENDS ${SOFAIMGUI_ALL_SHADER_OUTPUTS})
+    add_dependencies(${PROJECT_NAME}_shaders shaderc)
+    add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_shaders)
+
+    set(SOFAIMGUI_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_RESOURCES_DIR="${SOFAIMGUI_RESOURCES_DIR}")
 endif()
 
 # setup the same API exports for imgui

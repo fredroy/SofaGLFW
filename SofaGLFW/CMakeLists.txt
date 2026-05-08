@@ -79,6 +79,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 if(BGFXPlugin_FOUND)
     message("${PROJECT_NAME}: BGFXPlugin support enabled.")
     target_link_libraries(${PROJECT_NAME} PUBLIC BGFXPlugin)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../SofaImGui/resources")
 endif()
 
 if(Sofa.GUI.Common_FOUND)
