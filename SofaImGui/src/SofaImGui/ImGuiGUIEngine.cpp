@@ -954,7 +954,6 @@ void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
 {
 #if SOFAIMGUI_USE_BGFX == 1
     SOFA_UNUSED(glfwWindow);
-    bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x000000ff, 1.0f, 0);
     sofa::core::visual::VisualParams::defaultInstance()->viewport() = {
         m_viewportRect[0], m_viewportRect[1], m_viewportRect[2], m_viewportRect[3]};
 #else

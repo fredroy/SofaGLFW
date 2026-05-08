@@ -34,12 +34,14 @@
 #include <sofa/simulation/Simulation.h>
 #include <sofa/simulation/Node.h>
 
-#include <ranges>
-
 using namespace sofa;
 
+#include <cstring>
 #include <bgfx/c99/bgfx.h>
+#include <bgfx/bgfx.h>
 #include <bx/math.h>
+#include <BGFXPlugin/DrawToolBGFX.h>
+#include <BGFXPlugin/BGFXShaderUtils.h>
 
 namespace sofaglfw
 {
@@ -53,27 +55,55 @@ SofaGLFWWindow::SofaGLFWWindow(GLFWwindow* glfwWindow, component::visual::BaseCa
 void SofaGLFWWindow::close()
 {
     glfwDestroyWindow(m_glfwWindow);
-    
-    if(m_currentBackgroundTexture)
-    {
-        delete m_currentBackgroundTexture;
-        m_currentBackgroundTexture = nullptr;
-    }
-    
-    for(auto& [_, background] : m_backgrounds)
-    {
-        delete background.texture;
-    }
-    
+
     m_backgrounds.clear();
+
+    if (m_bgProgram.idx != UINT16_MAX)
+    {
+        bgfx_destroy_program(m_bgProgram);
+        m_bgProgram.idx = UINT16_MAX;
+    }
+    if (m_bgTexUniform.idx != UINT16_MAX)
+    {
+        bgfx_destroy_uniform(m_bgTexUniform);
+        m_bgTexUniform.idx = UINT16_MAX;
+    }
 }
 
 void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams* vparams)
 {
-    const uint16_t vpX = static_cast<uint16_t>(vparams->viewport()[0]);
-    const uint16_t vpY = static_cast<uint16_t>(vparams->viewport()[1]);
-    const uint16_t width = static_cast<uint16_t>(vparams->viewport()[2]);
-    const uint16_t height = static_cast<uint16_t>(vparams->viewport()[3]);
+    constexpr uint16_t kViewBackground = 0;
+    constexpr uint16_t kViewScene = 1;
+
+    // ImGui viewport rect is in logical pixels; bgfx needs framebuffer pixels
+    float xscale = 1.0f, yscale = 1.0f;
+    glfwGetWindowContentScale(m_glfwWindow, &xscale, &yscale);
+
+    const uint16_t vpX = static_cast<uint16_t>(vparams->viewport()[0] * xscale);
+    const uint16_t vpY = static_cast<uint16_t>(vparams->viewport()[1] * yscale);
+    const uint16_t width = static_cast<uint16_t>(vparams->viewport()[2] * xscale);
+    const uint16_t height = static_cast<uint16_t>(vparams->viewport()[3] * yscale);
+
+    const uint32_t clearColor =
+        (uint32_t(m_backgroundColor[0] * 255.0f) << 24) |
+        (uint32_t(m_backgroundColor[1] * 255.0f) << 16) |
+        (uint32_t(m_backgroundColor[2] * 255.0f) <<  8) |
+        (uint32_t(m_backgroundColor[3] * 255.0f));
+
+    // Ensure views render in order: background(0), scene(1)
+    const uint16_t viewOrder[] = { kViewBackground, kViewScene };
+    bgfx_set_view_order(0, 2, viewOrder);
+
+    // Get full backbuffer size
+    int fbWidth, fbHeight;
+    glfwGetFramebufferSize(m_glfwWindow, &fbWidth, &fbHeight);
+
+    // View 0: clear entire backbuffer + optional background texture in viewport area
+    bgfx_set_view_rect(kViewBackground, 0, 0, static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight));
+    bgfx_set_view_clear(kViewBackground, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, clearColor, 1.0f, 0);
+
+    if (!drawBackgroundImage(vpX, vpY, width, height, fbWidth, fbHeight))
+        bgfx_touch(kViewBackground);
 
     // draw the scene
     if (!m_currentCamera)
@@ -82,7 +112,9 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
         return;
     }
 
-    // Set view and projection matrix for view 0.
+    // View 1: 3D scene with camera (viewport subset)
+    bgfx_set_view_rect(kViewScene, vpX, vpY, width, height);
+    bgfx_set_view_clear(kViewScene, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
     {
         double viewd[16]{};
         float view[16]{};
@@ -99,27 +131,20 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
             proj[i] = static_cast<float>(projd[i]);
         }
 
-        bgfx_set_view_transform(0, view, proj);
-
-        bgfx_set_view_rect(0, vpX, vpY, width, height);
+        bgfx_set_view_transform(kViewScene, view, proj);
 
         // Update the visual params
         vparams->zNear() = m_currentCamera->getZNear();
         vparams->zFar() = m_currentCamera->getZFar();
-        vparams->setProjectionMatrix(viewd);
-        vparams->setModelViewMatrix(projd);
+        vparams->setModelViewMatrix(viewd);
+        vparams->setProjectionMatrix(projd);
     }
 
-    // This dummy draw call is here to make sure that view 0 is cleared
-    // if no other draw calls are submitted to view 0.
-    bgfx_touch(0);
+    bgfx_touch(kViewScene);
 
-
-    // This dummy draw call is here to make sure that view 0 is cleared
-    // if no other draw calls are submitted to view 0.
-    bgfx_encoder_t* encoder = bgfx_encoder_begin(true);
-    bgfx_encoder_touch(encoder, 0);
-    bgfx_encoder_end(encoder);
+    auto* drawTool = dynamic_cast<bgfxplugin::DrawToolBGFX*>(vparams->drawTool());
+    if (drawTool)
+        drawTool->setViewId(kViewScene);
 
     sofa::simulation::node::draw(vparams, groot.get());
 
@@ -134,31 +159,28 @@ void SofaGLFWWindow::setBackgroundColor(const RGBAColor& newColor)
 
 void SofaGLFWWindow::setBackgroundImage(const std::string& filename)
 {
-    // when setting a background image, we check if it was not loaded and cached first
     if(!m_backgrounds.contains(filename))
     {
         std::string tempFilename = filename;
         if( sofa::helper::system::DataRepository.findFile(tempFilename) )
         {
             const auto backgroundImageFilename = sofa::helper::system::DataRepository.getFile(tempFilename);
-            
+
             std::string extension = sofa::helper::system::SetDirectory::GetExtension(filename.c_str());
-            std::ranges::transform(extension, extension.begin(), ::tolower );
-            
+            std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+
             auto* backgroundImage = helper::io::Image::FactoryImage::getInstance()->createObject(extension, backgroundImageFilename);
             if( !backgroundImage )
             {
                 msg_warning("GUI") << "Could not load the file " << filename;
                 return;
             }
-            else
+
+            auto tex = std::make_unique<bgfxplugin::Texture>(backgroundImage, false, true, false);
+            tex->init();
+            if (tex->isValid())
             {
-                //auto* texture = new gl::Texture(backgroundImage);
-                //if(texture)
-                //{
-                //    texture->init();
-                //    m_backgrounds.emplace(filename, Background{backgroundImage, texture});
-                //}
+                m_backgrounds[filename] = Background{ std::move(tex) };
             }
         }
     }
@@ -166,37 +188,78 @@ void SofaGLFWWindow::setBackgroundImage(const std::string& filename)
 }
 
 
-void SofaGLFWWindow::drawBackgroundImage()
+bool SofaGLFWWindow::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH, int fbW, int fbH)
 {
-    if(!m_backgrounds.contains(m_currentBackgroundFilename))
-        return;
-        
+    if (m_currentBackgroundFilename.empty())
+        return false;
+
+    if (!m_backgrounds.contains(m_currentBackgroundFilename))
+        return false;
+
     const auto& background = m_backgrounds[m_currentBackgroundFilename];
+    if (!background.texture || !background.texture->isValid())
+        return false;
 
-    if(!background.image)
-        return;
-    
-    const int imageWidth = background.image->getWidth();
-    const int imageHeight = background.image->getHeight();
-    
-    int screenWidth = 0;
-    int screenHeight = 0;
-    
-    // screenWidth = m_currentCamera->d_widthViewport.getValue();
-    // screenHeight = m_currentCamera->d_heightViewport.getValue();
-        
-    // glEnable(GL_TEXTURE_2D);
-    // glDisable(GL_DEPTH_TEST);
-    // glMatrixMode(GL_PROJECTION);
-    // glPushMatrix();
-    // glLoadIdentity();
-    // glOrtho(-0.5, screenWidth, -0.5, screenHeight, -1.0, 1.0);
-    // glMatrixMode(GL_MODELVIEW);
-    // glPushMatrix();
-    // glLoadIdentity();
+    if (m_bgProgram.idx == UINT16_MAX)
+    {
+        m_bgProgram = bgfxplugin::loadProgram("vs_imgui", "fs_imgui");
+        m_bgTexUniform = bgfx_create_uniform("s_texColor", BGFX_UNIFORM_TYPE_SAMPLER, 1);
+    }
 
-    glfwGetFramebufferSize(m_glfwWindow, &screenWidth, &screenHeight);
+    if (m_bgProgram.idx == UINT16_MAX)
+        return false;
 
+    struct PosTexColorVertex
+    {
+        float x, y;
+        float u, v;
+        uint32_t col;
+    };
+
+    const float x0 = static_cast<float>(vpX);
+    const float y0 = static_cast<float>(vpY);
+    const float x1 = static_cast<float>(vpX + vpW);
+    const float y1 = static_cast<float>(vpY + vpH);
+
+    constexpr uint32_t white = 0xFFFFFFFF;
+    const PosTexColorVertex vertices[] = {
+        { x0, y0, 0.0f, 1.0f, white },
+        { x1, y0, 1.0f, 1.0f, white },
+        { x1, y1, 1.0f, 0.0f, white },
+        { x0, y1, 0.0f, 0.0f, white },
+    };
+    const uint16_t indices[] = { 0, 1, 2, 0, 2, 3 };
+
+    bgfx_vertex_layout_t layout;
+    bgfx_vertex_layout_begin(&layout, bgfx_get_renderer_type());
+    bgfx_vertex_layout_add(&layout, BGFX_ATTRIB_POSITION, 2, BGFX_ATTRIB_TYPE_FLOAT, false, false);
+    bgfx_vertex_layout_add(&layout, BGFX_ATTRIB_TEXCOORD0, 2, BGFX_ATTRIB_TYPE_FLOAT, false, false);
+    bgfx_vertex_layout_add(&layout, BGFX_ATTRIB_COLOR0, 4, BGFX_ATTRIB_TYPE_UINT8, true, false);
+    bgfx_vertex_layout_end(&layout);
+
+    bgfx_transient_vertex_buffer_t tvb;
+    bgfx_transient_index_buffer_t tib;
+    bgfx_alloc_transient_vertex_buffer(&tvb, 4, &layout);
+    bgfx_alloc_transient_index_buffer(&tib, 6, false);
+
+    memcpy(tvb.data, vertices, sizeof(vertices));
+    memcpy(tib.data, indices, sizeof(indices));
+
+    float view[16];
+    bx::mtxIdentity(view);
+    float proj[16];
+    const bool homogeneousDepth = bgfx::getCaps()->homogeneousDepth;
+    bx::mtxOrtho(proj, 0.0f, static_cast<float>(fbW), static_cast<float>(fbH), 0.0f, 0.0f, 1.0f, 0.0f, homogeneousDepth);
+    bgfx_set_view_transform(0, view, proj);
+
+    bgfx_set_transient_vertex_buffer(0, &tvb, 0, 4);
+    bgfx_set_transient_index_buffer(&tib, 0, 6);
+
+    background.texture->bind(0, m_bgTexUniform);
+
+    bgfx_set_state(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A, 0);
+    bgfx_submit(0, m_bgProgram, 0, BGFX_DISCARD_ALL);
+    return true;
 }
 
 void SofaGLFWWindow::alignCamera(sofaglfw::SofaGLFWBaseGUI* baseGUI, const CameraAlignement& align)
