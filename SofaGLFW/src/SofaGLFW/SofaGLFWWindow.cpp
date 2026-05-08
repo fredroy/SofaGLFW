@@ -202,7 +202,8 @@ bool SofaGLFWWindow::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vp
 
     if (m_bgProgram.idx == UINT16_MAX)
     {
-        m_bgProgram = bgfxplugin::loadProgram("vs_imgui", "fs_imgui");
+        m_bgProgram = bgfxplugin::loadProgram("vs_imgui", "fs_imgui",
+            std::string(SOFAIMGUI_RESOURCES_DIR) + "/shaders");
         m_bgTexUniform = bgfx_create_uniform("s_texColor", BGFX_UNIFORM_TYPE_SAMPLER, 1);
     }
 
