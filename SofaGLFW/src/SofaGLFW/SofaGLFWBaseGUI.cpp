@@ -1199,6 +1199,21 @@ void SofaGLFWBaseGUI::framebuffer_size_callback(GLFWwindow* window, int width, i
     }
 }
 
+void SofaGLFWBaseGUI::setVsync(bool enabled)
+{
+    if (enabled)
+        m_reset |= BGFX_RESET_VSYNC;
+    else
+        m_reset &= ~BGFX_RESET_VSYNC;
+
+    int w, h;
+    glfwGetWindowSize(m_firstWindow, &w, &h);
+    float xscale = 1.0f, yscale = 1.0f;
+    glfwGetWindowContentScale(m_firstWindow, &xscale, &yscale);
+    bgfx_reset(static_cast<uint32_t>(w * xscale), static_cast<uint32_t>(h * yscale),
+               m_reset, BGFX_TEXTURE_FORMAT_COUNT);
+}
+
 void SofaGLFWBaseGUI::cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
     auto currentGUI = s_mapGUIs.find(window);

@@ -152,6 +152,9 @@ public:
     uint32_t m_debug = BGFX_DEBUG_NONE;
     uint32_t m_reset = BGFX_RESET_VSYNC | BGFX_RESET_HIDPI;
 
+    void setVsync(bool enabled);
+    bool isVsync() const { return (m_reset & BGFX_RESET_VSYNC) != 0; }
+
 private:
     // GLFW callbacks
     static void error_callback(int error, const char* description);
