@@ -1199,19 +1199,47 @@ void SofaGLFWBaseGUI::framebuffer_size_callback(GLFWwindow* window, int width, i
     }
 }
 
-void SofaGLFWBaseGUI::setVsync(bool enabled)
+void SofaGLFWBaseGUI::applyReset()
 {
-    if (enabled)
-        m_reset |= BGFX_RESET_VSYNC;
-    else
-        m_reset &= ~BGFX_RESET_VSYNC;
-
     int w, h;
     glfwGetWindowSize(m_firstWindow, &w, &h);
     float xscale = 1.0f, yscale = 1.0f;
     glfwGetWindowContentScale(m_firstWindow, &xscale, &yscale);
     bgfx_reset(static_cast<uint32_t>(w * xscale), static_cast<uint32_t>(h * yscale),
                m_reset, BGFX_TEXTURE_FORMAT_COUNT);
+}
+
+void SofaGLFWBaseGUI::setVsync(bool enabled)
+{
+    if (enabled)
+        m_reset |= BGFX_RESET_VSYNC;
+    else
+        m_reset &= ~BGFX_RESET_VSYNC;
+    applyReset();
+}
+
+void SofaGLFWBaseGUI::setMsaa(int level)
+{
+    m_reset &= ~BGFX_RESET_MSAA_MASK;
+    switch (level)
+    {
+    case 2:  m_reset |= BGFX_RESET_MSAA_X2;  break;
+    case 4:  m_reset |= BGFX_RESET_MSAA_X4;  break;
+    case 8:  m_reset |= BGFX_RESET_MSAA_X8;  break;
+    case 16: m_reset |= BGFX_RESET_MSAA_X16; break;
+    default: break;
+    }
+    applyReset();
+}
+
+int SofaGLFWBaseGUI::getMsaa() const
+{
+    const uint32_t msaa = m_reset & BGFX_RESET_MSAA_MASK;
+    if (msaa == BGFX_RESET_MSAA_X16) return 16;
+    if (msaa == BGFX_RESET_MSAA_X8)  return 8;
+    if (msaa == BGFX_RESET_MSAA_X4)  return 4;
+    if (msaa == BGFX_RESET_MSAA_X2)  return 2;
+    return 0;
 }
 
 void SofaGLFWBaseGUI::cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
