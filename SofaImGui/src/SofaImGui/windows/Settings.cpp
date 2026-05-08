@@ -121,6 +121,25 @@ namespace windows
                         ini.SetBoolValue("Rendering", "vsync", vsync);
                         [[maybe_unused]] SI_Error rc = ini.SaveFile(sofaimgui::AppIniFile::getAppIniFile().c_str());
                     }
+
+                    static constexpr int msaaLevels[] = { 0, 2, 4, 8, 16 };
+                    static constexpr const char* msaaLabels[] = { "Off", "2x", "4x", "8x", "16x" };
+                    int currentMsaa = baseGUI->getMsaa();
+                    int currentIdx = 0;
+                    for (int i = 0; i < 5; ++i)
+                    {
+                        if (msaaLevels[i] == currentMsaa)
+                        {
+                            currentIdx = i;
+                            break;
+                        }
+                    }
+                    if (ImGui::Combo("MSAA", &currentIdx, msaaLabels, 5))
+                    {
+                        baseGUI->setMsaa(msaaLevels[currentIdx]);
+                        ini.SetLongValue("Rendering", "msaa", msaaLevels[currentIdx]);
+                        [[maybe_unused]] SI_Error rc = ini.SaveFile(sofaimgui::AppIniFile::getAppIniFile().c_str());
+                    }
                 }
 
             }
