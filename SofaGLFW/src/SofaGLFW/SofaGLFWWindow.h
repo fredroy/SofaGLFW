@@ -22,21 +22,15 @@
 #pragma once
 #include <SofaGLFW/config.h>
 
+#include <memory>
 #include <sofa/simulation/fwd.h>
 #include <sofa/component/visual/BaseCamera.h>
 #include "SofaGLFWBaseGUI.h"
 
+#include <bgfx/c99/bgfx.h>
+#include <BGFXPlugin/Texture.h>
+
 struct GLFWwindow;
-
-namespace sofa::helper::io
-{
-class Image;
-}
-
-namespace sofa::gl
-{
-class Texture;
-}
 
 namespace sofaglfw
 {
@@ -55,7 +49,7 @@ public:
     void scrollEvent(double xoffset, double yoffset);
     void setBackgroundColor(const RGBAColor& newColor);
     void setBackgroundImage(const std::string& filename);
-    void drawBackgroundImage();
+    bool drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH, int fbW, int fbH);
 
     void setCamera(sofa::component::visual::BaseCamera::SPtr newCamera);
     void centerCamera(sofa::simulation::NodeSPtr node, sofa::core::visual::VisualParams* vparams) const;
@@ -74,16 +68,16 @@ private:
     int m_currentXPos{ -1 };
     int m_currentYPos{ -1 };
     RGBAColor m_backgroundColor{ RGBAColor::black() };
-    sofa::gl::Texture* m_currentBackgroundTexture { nullptr };
-    
+
     struct Background
     {
-        sofa::helper::io::Image* image {nullptr};
-        sofa::gl::Texture* texture {nullptr};
+        std::unique_ptr<bgfxplugin::Texture> texture;
     };
-    
+
     std::map<std::string, Background> m_backgrounds;
     std::string m_currentBackgroundFilename{};
+    bgfx_program_handle_t m_bgProgram {UINT16_MAX};
+    bgfx_uniform_handle_t m_bgTexUniform {UINT16_MAX};
 };
 
 } // namespace sofaglfw
