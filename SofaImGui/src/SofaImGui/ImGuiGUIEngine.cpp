@@ -721,7 +721,9 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Viewport window
      **************************************/
-#if SOFAIMGUI_USE_BGFX != 1
+#if SOFAIMGUI_USE_BGFX == 1
+    windows::showViewPortOverlay(groot, settings->ini, baseGUI, m_viewportRect);
+#else
     windows::showViewPort(groot, windowNameViewport, settings->ini, m_fbo, m_viewportWindowSize,
                           isMouseOnViewport, winManagerViewPort, baseGUI,
                           isViewportDisplayedForTheFirstTime, lastViewPortPos);

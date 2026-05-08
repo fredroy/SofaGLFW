@@ -25,6 +25,9 @@
 #include <sofa/simulation/Node.h>
 #include "WindowState.h"
 #include <SimpleIni.h>
+#include <array>
+
+namespace sofaglfw { class SofaGLFWBaseGUI; }
 
 namespace windows
 {
@@ -58,6 +61,11 @@ namespace windows
                           bool& isViewportDisplayedForTheFirstTime,
                           sofa::type::Vec2f& lastViewPortPos);
 #endif
+
+        void showViewPortOverlay(sofa::core::sptr<sofa::simulation::Node> groot,
+                                 const CSimpleIniA &ini,
+                                 sofaglfw::SofaGLFWBaseGUI* baseGUI,
+                                 const std::array<int, 4>& viewportRect);
 
         /**
          * @brief Checks if the viewport position has moved beyond a specified threshold.
