@@ -112,6 +112,15 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
         return;
     }
 
+    if (groot->f_bbox.getValue().isValid())
+    {
+        vparams->sceneBBox() = groot->f_bbox.getValue();
+        m_currentCamera->setBoundingBox(vparams->sceneBBox().minBBox(), vparams->sceneBBox().maxBBox());
+    }
+    m_currentCamera->computeZ();
+    m_currentCamera->d_widthViewport.setValue(vparams->viewport()[2]);
+    m_currentCamera->d_heightViewport.setValue(vparams->viewport()[3]);
+
     // View 1: 3D scene with camera (viewport subset)
     bgfx_set_view_rect(kViewScene, vpX, vpY, width, height);
     bgfx_set_view_clear(kViewScene, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
@@ -124,6 +133,16 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
 
         m_currentCamera->getOpenGLModelViewMatrix(viewd);
         m_currentCamera->getOpenGLProjectionMatrix(projd);
+
+        // OpenGL projection maps depth to [-1,1]; remap to [0,1] for non-GL backends
+        if (!bgfx::getCaps()->homogeneousDepth)
+        {
+            // Column-major: row 2 = proj[2], proj[6], proj[10], proj[14]
+            projd[2]  = (projd[2]  + projd[3])  * 0.5;
+            projd[6]  = (projd[6]  + projd[7])  * 0.5;
+            projd[10] = (projd[10] + projd[11]) * 0.5;
+            projd[14] = (projd[14] + projd[15]) * 0.5;
+        }
 
         for (unsigned int i = 0; i < 16; i++)
         {
