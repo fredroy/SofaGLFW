@@ -124,6 +124,7 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
     // View 1: 3D scene with camera (viewport subset)
     bgfx_set_view_rect(kViewScene, vpX, vpY, width, height);
     bgfx_set_view_clear(kViewScene, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
+    float projY5 = 1.0f;
     {
         double viewd[16]{};
         float view[16]{};
@@ -157,13 +158,19 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
         vparams->setModelViewMatrix(viewd);
         vparams->setProjectionMatrix(projd);
 
+        projY5 = proj[5];
     }
 
     bgfx_touch(kViewScene);
 
     auto* drawTool = dynamic_cast<bgfxplugin::DrawToolBGFX*>(vparams->drawTool());
     if (drawTool)
+    {
         drawTool->setViewId(kViewScene);
+        drawTool->setCameraPosition(m_currentCamera->getPosition());
+        bool isOrtho = (m_currentCamera->getCameraType() == sofa::core::visual::VisualParams::ORTHOGRAPHIC_TYPE);
+        drawTool->setScreenParams(static_cast<float>(height), projY5, isOrtho);
+    }
 
     sofa::simulation::node::draw(vparams, groot.get());
 
