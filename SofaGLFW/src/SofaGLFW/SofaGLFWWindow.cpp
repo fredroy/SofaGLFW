@@ -134,20 +134,19 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
         m_currentCamera->getOpenGLModelViewMatrix(viewd);
         m_currentCamera->getOpenGLProjectionMatrix(projd);
 
-        // OpenGL projection maps depth to [-1,1]; remap to [0,1] for non-GL backends
-        if (!bgfx::getCaps()->homogeneousDepth)
-        {
-            // Column-major: row 2 = proj[2], proj[6], proj[10], proj[14]
-            projd[2]  = (projd[2]  + projd[3])  * 0.5;
-            projd[6]  = (projd[6]  + projd[7])  * 0.5;
-            projd[10] = (projd[10] + projd[11]) * 0.5;
-            projd[14] = (projd[14] + projd[15]) * 0.5;
-        }
-
         for (unsigned int i = 0; i < 16; i++)
         {
             view[i] = static_cast<float>(viewd[i]);
             proj[i] = static_cast<float>(projd[i]);
+        }
+
+        // OpenGL projection maps depth to [-1,1]; remap to [0,1] for non-GL backends (Metal/D3D)
+        if (!bgfx::getCaps()->homogeneousDepth)
+        {
+            proj[2]  = proj[2]  * 0.5f + proj[3]  * 0.5f;
+            proj[6]  = proj[6]  * 0.5f + proj[7]  * 0.5f;
+            proj[10] = proj[10] * 0.5f + proj[11] * 0.5f;
+            proj[14] = proj[14] * 0.5f + proj[15] * 0.5f;
         }
 
         bgfx_set_view_transform(kViewScene, view, proj);
@@ -157,6 +156,7 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
         vparams->zFar() = m_currentCamera->getZFar();
         vparams->setModelViewMatrix(viewd);
         vparams->setProjectionMatrix(projd);
+
     }
 
     bgfx_touch(kViewScene);
