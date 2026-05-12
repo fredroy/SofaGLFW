@@ -25,7 +25,9 @@
 #include <array>
 #include <memory>
 #include <SofaGLFW/BaseGUIEngine.h>
-#if SOFAIMGUI_USE_BGFX != 1
+#if SOFAIMGUI_USE_BGFX == 1
+#include <bgfx/c99/bgfx.h>
+#else
 #include <sofa/gl/FrameBufferObject.h>
 #endif
 
@@ -82,12 +84,27 @@ public:
     void saveScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI);
 
 protected:
-#if SOFAIMGUI_USE_BGFX != 1
+#if SOFAIMGUI_USE_BGFX == 1
+    bgfx_frame_buffer_handle_t m_sceneFB{UINT16_MAX};
+    bgfx_texture_handle_t m_sceneFBTexture{UINT16_MAX};
+    uint16_t m_sceneFBWidth{0};
+    uint16_t m_sceneFBHeight{0};
+    void recreateSceneFB(uint16_t width, uint16_t height);
+
+    bgfx_texture_handle_t m_readbackTexture{UINT16_MAX};
+    uint16_t m_readbackWidth{0};
+    uint16_t m_readbackHeight{0};
+    std::vector<uint8_t> m_readbackData;
+    uint32_t m_readbackFrame{0};
+    bool m_readbackPending{false};
+    void processScreenshotReadback();
+#else
     std::unique_ptr<sofa::gl::FrameBufferObject> m_fbo;
     std::pair<unsigned int, unsigned int> m_currentFBOSize;
 #endif
     std::pair<float, float> m_viewportWindowSize;
-    std::array<int, 4> m_viewportRect {}; // x, y, w, h in pixels for bgfx view 0
+    std::array<int, 4> m_viewportRect {}; // x, y, w, h in framebuffer pixels for bgfx rendering
+    std::array<int, 4> m_viewportScreenRect {}; // x, y, w, h in screen pixels for overlay positioning
     bool isMouseOnViewport { false };
 
     struct Settings;
@@ -118,6 +135,7 @@ protected:
     bool m_imguiNeedViewReset;
     std::string m_localeBackup;
     unsigned long m_screenshotCounter{0};
+    std::string m_pendingScreenshotPath;
     bool m_isTerminated{ false };
     std::size_t m_frameCount{0};
 #if SOFAIMGUI_USE_BGFX != 1
