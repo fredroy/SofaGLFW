@@ -169,7 +169,8 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
         drawTool->setViewId(kViewScene);
         drawTool->setCameraPosition(m_currentCamera->getPosition());
         bool isOrtho = (m_currentCamera->getCameraType() == sofa::core::visual::VisualParams::ORTHOGRAPHIC_TYPE);
-        drawTool->setScreenParams(static_cast<float>(height), projY5, isOrtho);
+        drawTool->setScreenParams(static_cast<float>(width), static_cast<float>(height), projY5, isOrtho);
+        drawTool->setFramebufferSize(static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight), xscale);
     }
 
     sofa::simulation::node::draw(vparams, groot.get());
