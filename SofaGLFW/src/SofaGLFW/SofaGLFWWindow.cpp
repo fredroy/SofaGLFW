@@ -94,15 +94,15 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
     const uint16_t viewOrder[] = { kViewBackground, kViewScene };
     bgfx_set_view_order(0, 2, viewOrder);
 
-    // Get full backbuffer size
-    int fbWidth, fbHeight;
-    glfwGetFramebufferSize(m_glfwWindow, &fbWidth, &fbHeight);
+    // Use viewport dimensions as the render target size (works for both backbuffer and offscreen FB)
+    const int fbWidth = width;
+    const int fbHeight = height;
 
-    // View 0: clear entire backbuffer + optional background texture in viewport area
-    bgfx_set_view_rect(kViewBackground, 0, 0, static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight));
+    // View 0: clear entire render target + optional background texture
+    bgfx_set_view_rect(kViewBackground, 0, 0, width, height);
     bgfx_set_view_clear(kViewBackground, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, clearColor, 1.0f, 0);
 
-    if (!drawBackgroundImage(vpX, vpY, width, height, fbWidth, fbHeight))
+    if (!drawBackgroundImage(0, 0, width, height, fbWidth, fbHeight))
         bgfx_touch(kViewBackground);
 
     // draw the scene
@@ -170,7 +170,7 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
         drawTool->setCameraPosition(m_currentCamera->getPosition());
         bool isOrtho = (m_currentCamera->getCameraType() == sofa::core::visual::VisualParams::ORTHOGRAPHIC_TYPE);
         drawTool->setScreenParams(static_cast<float>(width), static_cast<float>(height), projY5, isOrtho);
-        drawTool->setFramebufferSize(static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight), xscale);
+        drawTool->setFramebufferSize(static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight), 1.0f);
     }
 
     sofa::simulation::node::draw(vparams, groot.get());
