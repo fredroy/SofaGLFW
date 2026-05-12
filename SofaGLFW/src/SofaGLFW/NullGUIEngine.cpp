@@ -75,7 +75,7 @@ void NullGUIEngine::endFrame()
 void NullGUIEngine::beforeDraw(GLFWwindow* window)
 {
     int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
+    glfwGetWindowSize(window, &width, &height);
     sofa::core::visual::VisualParams::defaultInstance()->viewport() = {0, 0, width, height};
 }
 
