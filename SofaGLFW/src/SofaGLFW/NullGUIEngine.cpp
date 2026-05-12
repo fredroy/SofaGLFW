@@ -23,6 +23,7 @@
 #include <SofaGLFW/NullGUIEngine.h>
 #include <sofa/core/visual/VisualParams.h>
 #include <GLFW/glfw3.h>
+#include <bgfx/c99/bgfx.h>
 
 #include <sofa/helper/io/File.h>
 #include <sofa/helper/io/STBImage.h>
@@ -42,6 +43,7 @@ void NullGUIEngine::initBackend(GLFWwindow* window)
 }
 void NullGUIEngine::startFrame(SofaGLFWBaseGUI*)
 {
+    bgfx_frame(false);
 }
 void NullGUIEngine::endFrame()
 {
@@ -94,12 +96,10 @@ void NullGUIEngine::resetCounter()
 
 sofa::type::Vec2i NullGUIEngine::getFrameBufferPixels(std::vector<uint8_t>& pixels)
 {
-    GLint viewport[4];
-    glGetIntegerv(GL_VIEWPORT, viewport);
-    pixels.resize(viewport[2] * viewport[3] * 4);
-    glReadPixels(viewport[0], viewport[1], viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-    
-    return {viewport[2], viewport[3]};
+    int width, height;
+    glfwGetFramebufferSize(m_window, &width, &height);
+    pixels.resize(width * height * 4, 0);
+    return {width, height};
 }
 
 void NullGUIEngine::saveNamedScreenshot(SofaGLFWBaseGUI * baseGUI, std::string filename , int compression_level )
