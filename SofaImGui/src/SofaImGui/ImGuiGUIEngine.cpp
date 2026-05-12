@@ -363,7 +363,27 @@ void ImGuiGUIEngine::saveNamedScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI, std
 void ImGuiGUIEngine::saveScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI)
 {
 #if SOFAIMGUI_USE_BGFX == 1
-    SOFA_UNUSED(baseGUI);
+    nfdchar_t *outPath;
+    std::array<nfdfilteritem_t, 1> filterItem{ { {"Image", "jpg,png"} } };
+    const auto sceneFilename = baseGUI->getSceneFileName();
+    std::string baseFilename{};
+    if (!sceneFilename.empty())
+    {
+        std::filesystem::path path(sceneFilename);
+        baseFilename = path.stem().string();
+    }
+
+    std::ostringstream oss{};
+    oss << baseFilename << "_" << std::setfill('0') << std::setw(4) << m_screenshotCounter << ".png";
+    m_screenshotCounter++;
+
+    nfdresult_t result = NFD_SaveDialog(&outPath,
+        filterItem.data(), filterItem.size(), nullptr, oss.str().c_str());
+    if (result == NFD_OKAY)
+    {
+        baseGUI->saveScreenshot(outPath);
+        NFD_FreePath(outPath);
+    }
 #else
     const auto sceneFilename = baseGUI->getSceneFileName();
     std::string baseFilename{};

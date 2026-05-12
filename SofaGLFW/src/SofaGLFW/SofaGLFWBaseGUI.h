@@ -128,6 +128,8 @@ public:
     }
     void moveRayPickInteractor(int eventX, int eventY) override ;
     
+    void saveScreenshot(const std::string& filePath);
+
     void toggleVideoRecording();
     bool initRecorder(int width, int height, unsigned int framerate, unsigned int bitrate, const std::string& codecExtension, const std::string& codecName);
 

@@ -77,6 +77,92 @@
 #include <sofa/gui/common/PickHandler.h>
 
 #include <BGFXPlugin/DrawToolBGFX.h>
+#include <bgfx/bgfx.h>
+#include <bx/file.h>
+
+namespace
+{
+
+struct BgfxScreenshotCallback : bgfx_callback_interface_t
+{
+    static bgfx_callback_vtbl_t s_vtbl;
+
+    BgfxScreenshotCallback()
+    {
+        vtbl = &s_vtbl;
+    }
+
+    static void fatal(bgfx_callback_interface_t*, const char*, uint16_t, bgfx_fatal_t, const char*) {}
+    static void traceVargs(bgfx_callback_interface_t*, const char*, uint16_t, const char*, va_list) {}
+    static void profilerBegin(bgfx_callback_interface_t*, const char*, uint32_t, const char*, uint16_t) {}
+    static void profilerBeginLiteral(bgfx_callback_interface_t*, const char*, uint32_t, const char*, uint16_t) {}
+    static void profilerEnd(bgfx_callback_interface_t*) {}
+    static uint32_t cacheReadSize(bgfx_callback_interface_t*, uint64_t) { return 0; }
+    static bool cacheRead(bgfx_callback_interface_t*, uint64_t, void*, uint32_t) { return false; }
+    static void cacheWrite(bgfx_callback_interface_t*, uint64_t, const void*, uint32_t) {}
+
+    static void screenShot(bgfx_callback_interface_t*, const char* filePath, uint32_t width,
+        uint32_t height, uint32_t pitch, bgfx_texture_format_t format, const void* data,
+        uint32_t /*size*/, bool yflip)
+    {
+        if (!filePath || !data)
+            return;
+
+        sofa::helper::io::STBImage image;
+        image.init(width, height, 1, 1,
+            sofa::helper::io::Image::DataType::UINT32,
+            sofa::helper::io::Image::ChannelFormat::RGBA);
+
+        const uint8_t* src = static_cast<const uint8_t*>(data);
+        uint8_t* dst = image.getPixels();
+        const uint32_t dstPitch = width * 4;
+
+        for (uint32_t row = 0; row < height; ++row)
+        {
+            uint32_t srcRow = yflip ? row : (height - 1 - row);
+            const uint8_t* srcLine = src + srcRow * pitch;
+
+            if (format == BGFX_TEXTURE_FORMAT_RGBA8)
+            {
+                memcpy(dst + row * dstPitch, srcLine, dstPitch);
+            }
+            else if (format == BGFX_TEXTURE_FORMAT_BGRA8)
+            {
+                for (uint32_t x = 0; x < width; ++x)
+                {
+                    dst[row * dstPitch + x * 4 + 0] = srcLine[x * 4 + 2];
+                    dst[row * dstPitch + x * 4 + 1] = srcLine[x * 4 + 1];
+                    dst[row * dstPitch + x * 4 + 2] = srcLine[x * 4 + 0];
+                    dst[row * dstPitch + x * 4 + 3] = srcLine[x * 4 + 3];
+                }
+            }
+        }
+        image.save(filePath, 90);
+    }
+
+    static void captureBegin(bgfx_callback_interface_t*, uint32_t, uint32_t, uint32_t, bgfx_texture_format_t, bool) {}
+    static void captureEnd(bgfx_callback_interface_t*) {}
+    static void captureFrame(bgfx_callback_interface_t*, const void*, uint32_t) {}
+};
+
+bgfx_callback_vtbl_t BgfxScreenshotCallback::s_vtbl = {
+    BgfxScreenshotCallback::fatal,
+    BgfxScreenshotCallback::traceVargs,
+    BgfxScreenshotCallback::profilerBegin,
+    BgfxScreenshotCallback::profilerBeginLiteral,
+    BgfxScreenshotCallback::profilerEnd,
+    BgfxScreenshotCallback::cacheReadSize,
+    BgfxScreenshotCallback::cacheRead,
+    BgfxScreenshotCallback::cacheWrite,
+    BgfxScreenshotCallback::screenShot,
+    BgfxScreenshotCallback::captureBegin,
+    BgfxScreenshotCallback::captureEnd,
+    BgfxScreenshotCallback::captureFrame,
+};
+
+static BgfxScreenshotCallback s_bgfxCallback;
+
+} // anonymous namespace
 
 using namespace sofa;
 using namespace sofa::gui::common;
@@ -218,6 +304,7 @@ bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* gl
     init.resolution.width = fbWidth;
     init.resolution.height = fbHeight;
     init.resolution.reset = m_reset;
+    init.callback = &s_bgfxCallback;
 
     const auto res = bgfx_init(&init);
 
@@ -974,6 +1061,21 @@ void SofaGLFWBaseGUI::key_callback(GLFWwindow* window, int key, int scancode, in
                 triggerSceneAxis(currentGUI->groot);
                 break;
             }
+            // S: Save screenshot
+            case GLFW_KEY_S:
+            {
+                const auto sceneFilename = currentGUI->getSceneFileName();
+                std::string baseName = "screenshot";
+                if (!sceneFilename.empty())
+                {
+                    std::filesystem::path path(sceneFilename);
+                    baseName = path.stem().string();
+                }
+                std::string filePath = baseName + ".png";
+                currentGUI->saveScreenshot(filePath);
+                msg_info("SofaGLFWBaseGUI") << "Screenshot saved to " << filePath;
+                break;
+            }
             // B: Switch background
             case GLFW_KEY_B:
             {
@@ -1431,6 +1533,12 @@ bool SofaGLFWBaseGUI::centerWindow(GLFWwindow* window)
     return true;
 }
 
+
+void SofaGLFWBaseGUI::saveScreenshot(const std::string& filePath)
+{
+    bgfx_frame_buffer_handle_t handle = BGFX_INVALID_HANDLE;
+    bgfx_request_screen_shot(handle, filePath.c_str());
+}
 
 void SofaGLFWBaseGUI::toggleVideoRecording()
 {
