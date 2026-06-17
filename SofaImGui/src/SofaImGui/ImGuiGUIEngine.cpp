@@ -355,6 +355,8 @@ void ImGuiGUIEngine::openFile(sofaglfw::SofaGLFWBaseGUI* baseGUI, sofa::core::sp
 
 void ImGuiGUIEngine::saveNamedScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI, std::string filename, int compression_level)
 {
+    
+#if SOFAIMGUI_USE_BGFX == 0
     helper::io::STBImage image;
     image.init(m_currentFBOSize.first, m_currentFBOSize.second, 1, 1, sofa::helper::io::Image::DataType::UINT32, sofa::helper::io::Image::ChannelFormat::RGBA);
 
@@ -369,34 +371,12 @@ void ImGuiGUIEngine::saveNamedScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI, std
         compression_level = 90;
 
     image.save(filename, compression_level);
+#endif
 
 }
 
 void ImGuiGUIEngine::saveScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI)
 {
-#if SOFAIMGUI_USE_BGFX == 1
-    nfdchar_t *outPath;
-    std::array<nfdfilteritem_t, 1> filterItem{ { {"Image", "jpg,png"} } };
-    const auto sceneFilename = baseGUI->getSceneFileName();
-    std::string baseFilename{};
-    if (!sceneFilename.empty())
-    {
-        std::filesystem::path path(sceneFilename);
-        baseFilename = path.stem().string();
-    }
-
-    std::ostringstream oss{};
-    oss << baseFilename << "_" << std::setfill('0') << std::setw(4) << m_screenshotCounter << ".png";
-    m_screenshotCounter++;
-
-    nfdresult_t result = NFD_SaveDialog(&outPath,
-        filterItem.data(), filterItem.size(), nullptr, oss.str().c_str());
-    if (result == NFD_OKAY)
-    {
-        m_pendingScreenshotPath = outPath;
-        NFD_FreePath(outPath);
-    }
-#else
     const auto sceneFilename = baseGUI->getSceneFileName();
     std::string baseFilename{};
     if (!sceneFilename.empty())
@@ -419,7 +399,6 @@ void ImGuiGUIEngine::saveScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     {
         saveNamedScreenshot(baseGUI,std::string(outPath));
     }
-#endif
 }
 
 void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
@@ -959,7 +938,7 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
             m_sceneFBWidth, m_sceneFBHeight, 0);
 
         m_readbackData.resize(m_readbackWidth * m_readbackHeight * 4);
-        m_readbackFrame = bgfx_read_texture(m_readbackTexture, m_readbackData.data(), 0);
+        m_readbackFrame = bgfx_read_texture(m_readbackTexture, m_readbackData.data(), 0, 0);
         m_readbackPending = true;
     }
 
