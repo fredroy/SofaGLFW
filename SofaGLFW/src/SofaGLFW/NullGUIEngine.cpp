@@ -104,6 +104,13 @@ sofa::type::Vec2i NullGUIEngine::getFrameBufferPixels(std::vector<uint8_t>& pixe
 
 void NullGUIEngine::saveNamedScreenshot(SofaGLFWBaseGUI * baseGUI, std::string filename , int compression_level )
 {
+#if SOFAGLFW_HAVE_BGFXPLUGIN == 1
+    SOFA_UNUSED(baseGUI);
+    SOFA_UNUSED(filename);
+    SOFA_UNUSED(compression_level);
+    // bgfx does not support synchronous framebuffer readback via PBO
+    return;
+#else
     sofa::helper::io::STBImage image;
 
     GLint viewport[4];
@@ -120,7 +127,7 @@ void NullGUIEngine::saveNamedScreenshot(SofaGLFWBaseGUI * baseGUI, std::string f
         compression_level = 90;
 
     image.save(filename, compression_level);
-
+#endif
 };
 
 } // namespace sofaglfw
