@@ -21,16 +21,17 @@
 ******************************************************************************/
 #include <SofaGLFW/config.h>
 #include <SofaGLFW/NullGUIEngine.h>
+#include <SofaGLFW/SofaGLFWBaseGUI.h>
+#include <SofaGLFW/render/IRenderBackend.h>
 #include <sofa/core/visual/VisualParams.h>
 #include <GLFW/glfw3.h>
-#include <bgfx/c99/bgfx.h>
 
 #include <sofa/helper/io/File.h>
 #include <sofa/helper/io/STBImage.h>
 
 namespace sofaglfw
 {
-    
+
 void NullGUIEngine::init()
 {
     m_lastTime = glfwGetTime();
@@ -41,9 +42,10 @@ void NullGUIEngine::initBackend(GLFWwindow* window)
 {
     m_window = window;
 }
-void NullGUIEngine::startFrame(SofaGLFWBaseGUI*)
+void NullGUIEngine::startFrame(SofaGLFWBaseGUI* baseGUI)
 {
-    bgfx_frame(false);
+    if (baseGUI && baseGUI->getRenderBackend())
+        baseGUI->getRenderBackend()->present(m_window);
 }
 void NullGUIEngine::endFrame()
 {
@@ -102,32 +104,11 @@ sofa::type::Vec2i NullGUIEngine::getFrameBufferPixels(std::vector<uint8_t>& pixe
     return {width, height};
 }
 
-void NullGUIEngine::saveNamedScreenshot(SofaGLFWBaseGUI * baseGUI, std::string filename , int compression_level )
+void NullGUIEngine::saveNamedScreenshot(SofaGLFWBaseGUI* baseGUI, std::string filename, int compression_level)
 {
-#if SOFAGLFW_HAVE_BGFXPLUGIN == 1
-    SOFA_UNUSED(baseGUI);
-    SOFA_UNUSED(filename);
     SOFA_UNUSED(compression_level);
-    // bgfx does not support synchronous framebuffer readback via PBO
-    return;
-#else
-    sofa::helper::io::STBImage image;
-
-    GLint viewport[4];
-    glGetIntegerv(GL_VIEWPORT, viewport);
-
-    image.init(viewport[2], viewport[3], 1, 1,
-               sofa::helper::io::Image::DataType::UINT32,
-               sofa::helper::io::Image::ChannelFormat::RGBA);
-
-    glReadPixels(viewport[0], viewport[1], viewport[2], viewport[3],
-                 GL_RGBA, GL_UNSIGNED_BYTE, image.getPixels());
-
-    if(compression_level < 0)
-        compression_level = 90;
-
-    image.save(filename, compression_level);
-#endif
-};
+    if (baseGUI && baseGUI->getRenderBackend())
+        baseGUI->getRenderBackend()->requestBackbufferScreenshot(m_window, filename);
+}
 
 } // namespace sofaglfw
