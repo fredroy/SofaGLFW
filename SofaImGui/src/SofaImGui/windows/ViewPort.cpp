@@ -32,6 +32,7 @@
 #include "ViewPort.h"
 #include "SofaGLFW/SofaGLFWBaseGUI.h"
 #include <SofaImGui/widgets/DisplayFlagsWidget.h>
+#include <SofaImGui/render/IImGuiPlatform.h>
 #include <sofa/component/visual/VisualStyle.h>
 #include <SofaGLFW/SofaGLFWWindow.h>
 #include <imoguizmo/imoguizmo.hpp>
@@ -42,11 +43,10 @@
 namespace windows
 {
 
-#if SOFAIMGUI_USE_BGFX != 1
     void showViewPort(sofa::core::sptr<sofa::simulation::Node> groot,
                       const char* const& windowNameViewport,
                       const CSimpleIniA &ini,
-                      std::unique_ptr<sofa::gl::FrameBufferObject>& m_fbo,
+                      sofaimgui::render::IImGuiPlatform* platform,
                       std::pair<float, float>& m_viewportWindowSize,
                       bool &isMouseOnViewport,
                       WindowState& winManagerViewPort,
@@ -87,9 +87,16 @@ namespace windows
                     lastViewPortPos.y() = viewportPos.y;
                 }
 
-                ImGui::Image((ImTextureID)m_fbo->getColorTexture(), wsize, ImVec2(0, 1), ImVec2(1, 0));
-
-                isMouseOnViewport = ImGui::IsItemHovered();
+                if (platform)
+                {
+                    const ImTextureID sceneTex = platform->sceneTexture();
+                    // Flip vertically for bottom-up textures (OpenGL FBO).
+                    const bool flip = platform->sceneTextureFlippedV();
+                    const ImVec2 uv0 = flip ? ImVec2(0, 1) : ImVec2(0, 0);
+                    const ImVec2 uv1 = flip ? ImVec2(1, 0) : ImVec2(1, 1);
+                    ImGui::Image(sceneTex, wsize, uv0, uv1);
+                    isMouseOnViewport = ImGui::IsItemHovered();
+                }
 
                 // Frame and orientation gizmos (ported from SofaComplianceRobotics/SofaGLFW PR#79)
                 if (frameGizmoEnabled || orientationGizmoEnabled)
@@ -337,251 +344,6 @@ namespace windows
             }
         }
 
-    }
-#endif // SOFAIMGUI_USE_BGFX != 1
-
-    void showViewPortOverlay(sofa::core::sptr<sofa::simulation::Node> groot,
-                             const CSimpleIniA &ini,
-                             sofaglfw::SofaGLFWBaseGUI* baseGUI,
-                             const std::array<int, 4>& viewportRect)
-    {
-        static bool frameGizmoEnabled = ini.GetBoolValue("Visualization", "alwaysShowFrameGizmo", true);
-        static bool orientationGizmoEnabled = false;
-
-        const float vpX = static_cast<float>(viewportRect[0]);
-        const float vpY = static_cast<float>(viewportRect[1]);
-        const float vpW = static_cast<float>(viewportRect[2]);
-        const float vpH = static_cast<float>(viewportRect[3]);
-
-        // Gizmos (rendered in the viewport area)
-        if (frameGizmoEnabled || orientationGizmoEnabled)
-        {
-            sofa::component::visual::BaseCamera::SPtr camera;
-            groot->get(camera);
-            if (camera)
-            {
-                sofa::type::BoundingBox bb(camera->d_minBBox.getValue(), camera->d_maxBBox.getValue());
-                if (bb.isValid() && !bb.isFlat())
-                {
-                    const double frameGizmoSize = ImGui::GetFrameHeight() * 4;
-                    const double orientationGizmoSize = frameGizmoSize;
-                    const double totalGizmoWidth = static_cast<double>(frameGizmoEnabled) * frameGizmoSize
-                                                 + static_cast<double>(orientationGizmoEnabled) * orientationGizmoSize;
-                    bool orientationAxisClicked[3]{false};
-
-                    constexpr float gizmoMargin = 8.0f;
-                    ImVec2 position(vpX + vpW - float(totalGizmoWidth) - gizmoMargin,
-                                    vpY + vpH - float(frameGizmoSize) - gizmoMargin);
-
-                    double modelview[16];
-                    double projection[16];
-                    const auto cameraType = camera->getCameraType();
-                    camera->setCameraType(sofa::core::visual::VisualParams::PERSPECTIVE_TYPE);
-                    camera->getOpenGLModelViewMatrix(modelview);
-                    camera->getOpenGLProjectionMatrix(projection);
-                    camera->setCameraType(cameraType);
-                    float mview[16], proj[16];
-                    for (int i = 0; i < 16; i++)
-                    {
-                        mview[i] = float(modelview[i]);
-                        proj[i]  = float(projection[i]);
-                    }
-
-                    // Gizmos need an active ImGui window for GetWindowDrawList()
-                    // Size the window to just the gizmo area so it doesn't block viewport mouse events
-                    ImGui::SetNextWindowPos(position);
-                    ImGui::SetNextWindowSize(ImVec2(float(totalGizmoWidth) + gizmoMargin, float(frameGizmoSize) + gizmoMargin));
-                    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
-                    if (ImGui::Begin("##ViewportGizmos", nullptr,
-                            ImGuiWindowFlags_NoDecoration |
-                            ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings |
-                            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoNav))
-                    {
-                        if (orientationGizmoEnabled)
-                        {
-                            sofa::imoguizmo::SetRect(position.x, position.y, orientationGizmoSize);
-                            sofa::imoguizmo::DrawOrientationGizmo(mview, proj, orientationAxisClicked);
-                        }
-
-                        if (frameGizmoEnabled)
-                        {
-                            bool axisClicked[6]{false};
-                            const float frameX = position.x + float(orientationGizmoEnabled ? orientationGizmoSize : 0.0);
-                            sofa::imoguizmo::SetRect(frameX, position.y, frameGizmoSize);
-                            sofa::imoguizmo::DrawFrameGizmo(mview, proj, axisClicked);
-                            if (axisClicked[0])
-                                sofaglfw::SofaGLFWWindow::alignCamera(baseGUI, sofaglfw::SofaGLFWWindow::CameraAlignement::LEFT);
-                            else if (axisClicked[1])
-                                sofaglfw::SofaGLFWWindow::alignCamera(baseGUI, sofaglfw::SofaGLFWWindow::CameraAlignement::TOP);
-                            else if (axisClicked[2])
-                                sofaglfw::SofaGLFWWindow::alignCamera(baseGUI, sofaglfw::SofaGLFWWindow::CameraAlignement::FRONT);
-                            else if (axisClicked[3])
-                                sofaglfw::SofaGLFWWindow::alignCamera(baseGUI, sofaglfw::SofaGLFWWindow::CameraAlignement::RIGHT);
-                            else if (axisClicked[4])
-                                sofaglfw::SofaGLFWWindow::alignCamera(baseGUI, sofaglfw::SofaGLFWWindow::CameraAlignement::BOTTOM);
-                            else if (axisClicked[5])
-                                sofaglfw::SofaGLFWWindow::alignCamera(baseGUI, sofaglfw::SofaGLFWWindow::CameraAlignement::BACK);
-                        }
-                    }
-                    ImGui::End();
-                    ImGui::PopStyleColor();
-
-                    // Handle orientation gizmo drag
-                    if (orientationAxisClicked[0] || orientationAxisClicked[1] || orientationAxisClicked[2])
-                        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
-
-                    const double distance = camera->getDistance();
-                    const sofa::type::Vec3 lookAt = camera->getLookAtFromOrientation(
-                        camera->getPosition(), distance, camera->getOrientation());
-                    const auto dpos = ImGui::GetIO().MouseDelta;
-                    bool rotate = false;
-
-                    if (orientationAxisClicked[0])
-                    {
-                        sofa::type::Quat<SReal> q(0.001 * dpos.x, 0., 0., 1.);
-                        camera->rotateCameraAroundPoint(q, lookAt);
-                        rotate = true;
-                    }
-                    else if (orientationAxisClicked[1])
-                    {
-                        sofa::type::Quat<SReal> q(0., 0.001 * dpos.x, 0., 1.);
-                        camera->rotateCameraAroundPoint(q, lookAt);
-                        rotate = true;
-                    }
-                    else if (orientationAxisClicked[2])
-                    {
-                        sofa::type::Quat<SReal> q(0., 0., 0.001 * dpos.x, 1.);
-                        camera->rotateCameraAroundPoint(q, lookAt);
-                        rotate = true;
-                    }
-
-                    if (rotate)
-                    {
-                        auto orientation = camera->getOrientation();
-                        orientation.normalize();
-                        camera->setView(lookAt - orientation.rotate(sofa::type::Vec3(0, 0, -distance)), orientation);
-                    }
-                }
-            }
-        }
-
-        // Settings buttons overlay
-        if (!ini.GetBoolValue("Visualization", "showViewportSettingsButton", true))
-            return;
-
-        static constexpr ImGuiWindowFlags window_flags =
-            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration |
-            ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_AlwaysAutoResize |
-            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
-            ImGuiWindowFlags_NoNav;
-
-        ImVec2 pos(vpX + 10.0f, vpY + 10.0f);
-        ImGui::SetNextWindowPos(pos);
-
-        static const auto createdByGuiTag = sofa::core::objectmodel::Tag("createdByGUI");
-
-        if (ImGui::Begin("viewportSettingsMenuWindow", nullptr, window_flags))
-        {
-            if (ImGui::Button(ICON_FA_CAMERA))
-            {
-                auto guiEnginePtr = std::static_pointer_cast<sofaimgui::ImGuiGUIEngine>(baseGUI->getGUIEngine());
-                if (guiEnginePtr)
-                    guiEnginePtr->saveScreenshot(baseGUI);
-            }
-
-            if (baseGUI->isVideoRecording())
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ImColor(255, 0, 0)));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ImColor(255, 0, 0)));
-            }
-            else
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_Button]);
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGui::GetStyle().Colors[ImGuiCol_ButtonHovered]);
-            }
-            if (ImGui::Button(ICON_FA_VIDEO))
-            {
-                baseGUI->toggleVideoRecording();
-            }
-            ImGui::PopStyleColor(2);
-
-            if (ImGui::Button(ICON_FA_GEAR))
-            {
-                ImGui::OpenPopup("viewportSettingsMenu");
-            }
-
-            if (ImGui::BeginPopup("viewportSettingsMenu"))
-            {
-                if (ImGui::Selectable(ICON_FA_BORDER_ALL "  Show Grid"))
-                {
-                    auto grid = groot->get<sofa::component::visual::VisualGrid>(createdByGuiTag);
-                    if (!grid)
-                    {
-                        auto newGrid = sofa::core::objectmodel::New<sofa::component::visual::VisualGrid>();
-                        groot->addObject(newGrid);
-                        newGrid->setName("viewportGrid");
-                        newGrid->addTag(createdByGuiTag);
-                        newGrid->d_enable.setValue(true);
-                        auto box = groot->f_bbox.getValue().maxBBox() - groot->f_bbox.getValue().minBBox();
-                        newGrid->d_size.setValue(*std::max_element(box.begin(), box.end()));
-                        newGrid->init();
-                    }
-                    else
-                    {
-                        grid->d_enable.setValue(!grid->d_enable.getValue());
-                    }
-                }
-                if (ImGui::Selectable(ICON_FA_UP_DOWN_LEFT_RIGHT "  Show Axis"))
-                {
-                    sofaglfw::SofaGLFWBaseGUI::triggerSceneAxis(groot);
-                }
-                if (ImGui::Selectable(ICON_FA_SQUARE_FULL "  Show Frame Gizmo"))
-                    frameGizmoEnabled = !frameGizmoEnabled;
-                if (ImGui::Selectable(ICON_FA_ROTATE "  Show Orientation Gizmo"))
-                    orientationGizmoEnabled = !orientationGizmoEnabled;
-                if (ImGui::Selectable(ICON_FA_CUBE "  Show Bounding Box"))
-                {
-                    auto bboxVM = groot->get<sofa::component::visual::VisualBoundingBox>(createdByGuiTag);
-                    if (!bboxVM)
-                    {
-                        auto newBBoxVM = sofa::core::objectmodel::New<sofa::component::visual::VisualBoundingBox>();
-                        groot->addObject(newBBoxVM);
-                        newBBoxVM->setName("VisualBBox");
-                        newBBoxVM->addTag(createdByGuiTag);
-                        newBBoxVM->d_enable.setValue(true);
-                        newBBoxVM->f_bbox.setParent(&groot->f_bbox);
-                        newBBoxVM->d_color.setValue(sofa::type::RGBAColor::yellow());
-                        newBBoxVM->d_thickness.setValue(10.0f);
-                    }
-                    else
-                    {
-                        bboxVM->d_enable.setValue(!bboxVM->d_enable.getValue());
-                    }
-                }
-                if (ImGui::BeginMenu(ICON_FA_ARROW_POINTER " Selection parameters"))
-                {
-                    ImGui::Checkbox("Enable selection drawing", &baseGUI->m_enableSelectionDraw);
-                    ImGui::Checkbox("Show Node bounding box", &baseGUI->m_showSelectedNodeBoundingBox);
-                    ImGui::Checkbox("Show Object bounding box", &baseGUI->m_showSelectedObjectBoundingBox);
-                    ImGui::Checkbox("Show Object position", &baseGUI->m_showSelectedObjectPositions);
-                    ImGui::Checkbox("Show Object surface", &baseGUI->m_showSelectedObjectSurfaces);
-                    ImGui::Checkbox("Show Object volume", &baseGUI->m_showSelectedObjectVolumes);
-                    ImGui::Checkbox("Show Object indices", &baseGUI->m_showSelectedObjectIndices);
-                    ImGui::InputFloat("Visual scaling", &baseGUI->m_visualScaling);
-                    ImGui::EndMenu();
-                }
-                sofa::component::visual::VisualStyle::SPtr visualStyle = nullptr;
-                groot->get(visualStyle);
-                if (visualStyle && ImGui::BeginMenu(ICON_FA_EYE " Display flags"))
-                {
-                    sofaimgui::showDisplayFlagsWidget(visualStyle->d_displayFlags);
-                    ImGui::EndMenu();
-                }
-
-                ImGui::EndPopup();
-            }
-        }
-        ImGui::End();
     }
 
     bool hasViewportMoved(const float currentX, const float currentY, const float lastX, const float lastY, const float threshold)

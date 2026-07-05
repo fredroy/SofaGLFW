@@ -21,25 +21,35 @@
 ******************************************************************************/
 #pragma once
 #include <SofaGLFW/config.h>
+#include <sofa/simulation/Node.h>
+
+#include <sofa/type/fwd.h>
+#include <sofa/type/RGBAColor.h>
+#include <sofa/component/visual/BaseCamera.h>
+#include <SofaGLFW/render/RenderAPI.h>
 
 #include <memory>
-#include <sofa/simulation/fwd.h>
-#include <sofa/component/visual/BaseCamera.h>
-#include "SofaGLFWBaseGUI.h"
-
-#include <bgfx/c99/bgfx.h>
-#include <BGFXPlugin/Texture.h>
+#include <string>
 
 struct GLFWwindow;
+
+namespace sofaglfw::render
+{
+    class ISceneRenderer;
+}
 
 namespace sofaglfw
 {
 
+class SofaGLFWBaseGUI;
+
 class SOFAGLFW_API SofaGLFWWindow
 {
 public:
-    SofaGLFWWindow(GLFWwindow* glfwWindow, sofa::component::visual::BaseCamera::SPtr camera);
-    virtual ~SofaGLFWWindow() = default;
+    /// @param backend the resolved backend used to build the matching scene renderer
+    SofaGLFWWindow(GLFWwindow* glfwWindow, sofa::component::visual::BaseCamera::SPtr camera,
+                   render::RenderAPI backend);
+    virtual ~SofaGLFWWindow();
 
     void draw(sofa::simulation::NodeSPtr groot, sofa::core::visual::VisualParams* vparams);
     void close();
@@ -47,9 +57,8 @@ public:
     void mouseMoveEvent(int xpos, int ypos,SofaGLFWBaseGUI* gui);
     void mouseButtonEvent(int button, int action, int mods);
     void scrollEvent(double xoffset, double yoffset);
-    void setBackgroundColor(const RGBAColor& newColor);
+    void setBackgroundColor(const sofa::type::RGBAColor& newColor);
     void setBackgroundImage(const std::string& filename);
-    bool drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH, int fbW, int fbH);
 
     void setCamera(sofa::component::visual::BaseCamera::SPtr newCamera);
     void centerCamera(sofa::simulation::NodeSPtr node, sofa::core::visual::VisualParams* vparams) const;
@@ -67,17 +76,9 @@ private:
     int m_currentMods{ -1 };
     int m_currentXPos{ -1 };
     int m_currentYPos{ -1 };
-    RGBAColor m_backgroundColor{ RGBAColor::black() };
+    sofa::type::RGBAColor m_backgroundColor{ sofa::type::RGBAColor::black() };
 
-    struct Background
-    {
-        std::unique_ptr<bgfxplugin::Texture> texture;
-    };
-
-    std::map<std::string, Background> m_backgrounds;
-    std::string m_currentBackgroundFilename{};
-    bgfx_program_handle_t m_bgProgram {UINT16_MAX};
-    bgfx_uniform_handle_t m_bgTexUniform {UINT16_MAX};
+    std::unique_ptr<render::ISceneRenderer> m_sceneRenderer;
 };
 
 } // namespace sofaglfw
