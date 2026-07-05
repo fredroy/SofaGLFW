@@ -19,22 +19,36 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#pragma once
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+#include <string_view>
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+namespace sofaglfw::render
+{
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
+/// Identifies a rendering backend. This enum is backend-agnostic on purpose: it
+/// carries no OpenGL nor bgfx type, so it can be included by any shared file and
+/// shared across the SofaGLFW and SofaImGui plugins.
+enum class RenderAPI
+{
+    Auto,   ///< Resolve at runtime (env var, then .ini, then compiled-in default)
+    OpenGL, ///< Legacy OpenGL (requires Sofa.GL)
+    BGFX    ///< bgfx (requires BGFXPlugin)
+};
 
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
+inline std::string_view toString(RenderAPI api)
+{
+    switch (api)
+    {
+    case RenderAPI::OpenGL: return "OpenGL";
+    case RenderAPI::BGFX:   return "bgfx";
+    case RenderAPI::Auto:   return "auto";
+    }
+    return "auto";
+}
 
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+/// Parse a case-insensitive backend name ("opengl"/"gl", "bgfx") into a RenderAPI.
+/// Anything unrecognized (including empty) resolves to RenderAPI::Auto.
+RenderAPI parseRenderAPI(std::string_view name);
+
+} // namespace sofaglfw::render

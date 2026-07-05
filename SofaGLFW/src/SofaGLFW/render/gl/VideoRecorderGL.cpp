@@ -19,22 +19,45 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#include <SofaGLFW/render/IVideoRecorder.h>
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+#include <sofa/gl/VideoRecorderFFMPEG.h>
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+namespace sofaglfw::render
+{
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
+/// OpenGL-backed video recorder wrapping sofa::gl::VideoRecorderFFMPEG.
+class VideoRecorderGL : public IVideoRecorder
+{
+public:
+    bool init(const std::string& ffmpegExecPath, int width, int height,
+              unsigned int framerate, unsigned int bitrate,
+              const std::string& codecExtension,
+              const std::string& codecName) override
+    {
+        const std::string videoFilename =
+            m_recorder.findFilename(framerate, bitrate / 1024, codecExtension);
+        return m_recorder.init(ffmpegExecPath, videoFilename, width, height,
+                               framerate, bitrate, codecName);
+    }
 
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
+    void addFrame(const uint8_t* pixels, int width, int height) override
+    {
+        m_recorder.addFrame(pixels, width, height);
+    }
 
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+    void finish() override
+    {
+        m_recorder.finishVideo();
+    }
+
+private:
+    sofa::gl::VideoRecorderFFMPEG m_recorder;
+};
+
+// Register the OpenGL video recorder so SofaGLFWBaseGUI can create one when the
+// OpenGL backend is compiled in.
+static const VideoRecorderRegistrar s_videoRecorderRegistrar(
+    [] { return std::unique_ptr<IVideoRecorder>(new VideoRecorderGL()); });
+
+} // namespace sofaglfw::render

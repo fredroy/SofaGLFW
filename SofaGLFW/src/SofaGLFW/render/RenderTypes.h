@@ -19,22 +19,18 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#pragma once
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+namespace sofaglfw::render
+{
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+/// A rectangle in framebuffer pixels. Backend-agnostic (no GL/bgfx types).
+struct ViewportRect
+{
+    int x{0};
+    int y{0};
+    int width{0};
+    int height{0};
+};
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
-
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
-
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+} // namespace sofaglfw::render

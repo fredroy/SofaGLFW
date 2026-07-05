@@ -19,22 +19,49 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#pragma once
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+#include <SofaGLFW/config.h>
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+#include <cstdint>
+#include <memory>
+#include <string>
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
+namespace sofaglfw::render
+{
 
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
+/// Backend-agnostic video recorder abstraction. Only the OpenGL backend
+/// provides a concrete implementation (wrapping sofa::gl::VideoRecorderFFMPEG),
+/// because synchronous framebuffer read-back is required. When no implementation
+/// is registered (e.g. bgfx-only build), createVideoRecorder() returns nullptr
+/// and video recording is silently unavailable.
+class SOFAGLFW_API IVideoRecorder
+{
+public:
+    virtual ~IVideoRecorder() = default;
 
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+    virtual bool init(const std::string& ffmpegExecPath, int width, int height,
+                      unsigned int framerate, unsigned int bitrate,
+                      const std::string& codecExtension,
+                      const std::string& codecName) = 0;
+
+    virtual void addFrame(const uint8_t* pixels, int width, int height) = 0;
+    virtual void finish() = 0;
+};
+
+/// @return a video recorder if a backend provides one, else nullptr.
+SOFAGLFW_API std::unique_ptr<IVideoRecorder> createVideoRecorder();
+
+/// Registration hook used by the concrete (OpenGL) implementation's TU.
+using VideoRecorderCreator = std::unique_ptr<IVideoRecorder> (*)();
+SOFAGLFW_API void registerVideoRecorder(VideoRecorderCreator creator);
+
+struct SOFAGLFW_API VideoRecorderRegistrar
+{
+    explicit VideoRecorderRegistrar(VideoRecorderCreator creator)
+    {
+        registerVideoRecorder(creator);
+    }
+};
+
+} // namespace sofaglfw::render

@@ -19,22 +19,56 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#include <SofaImGui/render/ImGuiPlatformFactory.h>
+#include <SofaImGui/render/IImGuiPlatform.h>
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+#include <sofa/helper/logging/Messaging.h>
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+using sofaglfw::render::RenderAPI;
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
+namespace sofaimgui::render
+{
 
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
+ImGuiPlatformFactory& ImGuiPlatformFactory::getInstance()
+{
+    static ImGuiPlatformFactory instance;
+    return instance;
+}
 
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+void ImGuiPlatformFactory::registerPlatform(RenderAPI api, Creator creator)
+{
+    if (api == RenderAPI::BGFX)
+        m_bgfx = std::move(creator);
+    else if (api == RenderAPI::OpenGL)
+        m_opengl = std::move(creator);
+}
+
+bool ImGuiPlatformFactory::isAvailable(RenderAPI api) const
+{
+    if (api == RenderAPI::BGFX)
+        return static_cast<bool>(m_bgfx);
+    if (api == RenderAPI::OpenGL)
+        return static_cast<bool>(m_opengl);
+    return static_cast<bool>(m_bgfx) || static_cast<bool>(m_opengl);
+}
+
+std::unique_ptr<IImGuiPlatform> ImGuiPlatformFactory::create(RenderAPI api) const
+{
+    if (api == RenderAPI::BGFX && m_bgfx)
+        return m_bgfx();
+    if (api == RenderAPI::OpenGL && m_opengl)
+        return m_opengl();
+
+    msg_error("ImGuiPlatformFactory")
+        << "No ImGui platform available for the "
+        << sofaglfw::render::toString(api) << " backend.";
+    return nullptr;
+}
+
+ImGuiPlatformRegistrar::ImGuiPlatformRegistrar(RenderAPI api,
+                                               ImGuiPlatformFactory::Creator creator)
+{
+    ImGuiPlatformFactory::getInstance().registerPlatform(api, std::move(creator));
+}
+
+} // namespace sofaimgui::render

@@ -19,22 +19,53 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#pragma once
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+#include <SofaGLFW/render/ISceneRenderer.h>
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+#include <bgfx/c99/bgfx.h>
+#include <BGFXPlugin/Texture.h>
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
+#include <map>
+#include <memory>
+#include <string>
 
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
+namespace sofaglfw::render
+{
 
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+/// bgfx implementation of ISceneRenderer: two-view (background + scene) draw
+/// with camera matrix setup, depth-range remap for non-GL backends, and a
+/// textured background quad rendered from a transient buffer.
+class SceneRendererBGFX : public ISceneRenderer
+{
+public:
+    SceneRendererBGFX() = default;
+    ~SceneRendererBGFX() override;
+
+    void drawScene(sofa::simulation::Node* groot,
+                   sofa::core::visual::VisualParams* vparams,
+                   sofa::component::visual::BaseCamera* camera,
+                   GLFWwindow* glfwWindow,
+                   const ViewportRect& viewport,
+                   const sofa::type::RGBAColor& background) override;
+
+    void setBackgroundImage(const std::string& filename) override;
+    void clearBackgroundImage() override;
+    void releaseResources() override;
+
+private:
+    bool drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH,
+                             int fbW, int fbH);
+
+    struct Background
+    {
+        std::unique_ptr<bgfxplugin::Texture> texture;
+    };
+
+    std::map<std::string, Background> m_backgrounds;
+    std::string m_currentBackgroundFilename{};
+    bgfx_program_handle_t m_bgProgram{UINT16_MAX};
+    bgfx_uniform_handle_t m_bgTexUniform{UINT16_MAX};
+};
+
+} // namespace sofaglfw::render

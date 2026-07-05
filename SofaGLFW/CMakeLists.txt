@@ -9,6 +9,25 @@ sofa_find_package(Sofa.Component.Visual REQUIRED)
 sofa_find_package(Sofa.Component.Setting REQUIRED)
 sofa_find_package(Sofa.GUI.Common QUIET)
 sofa_find_package(BGFXPlugin QUIET)
+sofa_find_package(Sofa.GL QUIET)
+
+# Both rendering backends can be compiled into the same library and selected at
+# runtime. At least one must be available.
+if(BGFXPlugin_FOUND)
+    set(SOFAGLFW_HAVE_BGFXPLUGIN 1)
+else()
+    set(SOFAGLFW_HAVE_BGFXPLUGIN 0)
+endif()
+if(Sofa.GL_FOUND)
+    set(SOFAGLFW_HAVE_SOFA_GL 1)
+else()
+    set(SOFAGLFW_HAVE_SOFA_GL 0)
+endif()
+
+if(NOT BGFXPlugin_FOUND AND NOT Sofa.GL_FOUND)
+    message(FATAL_ERROR "${PROJECT_NAME}: neither BGFXPlugin nor Sofa.GL found. "
+        "At least one rendering backend is required.")
+endif()
 
 if( UNIX AND NOT APPLE )
     option(SOFAGLFW_USEX11 "Flag to force x11 for windows management" ON)
@@ -51,6 +70,13 @@ set(HEADER_FILES
     ${SOFAGLFW_SOURCE_DIR}/BaseGUIEngine.h
     ${SOFAGLFW_SOURCE_DIR}/NullGUIEngine.h
     ${SOFAGLFW_SOURCE_DIR}/SofaGLFWMouseManager.h
+    # Backend-agnostic render abstraction (no GL/bgfx headers)
+    ${SOFAGLFW_SOURCE_DIR}/render/RenderAPI.h
+    ${SOFAGLFW_SOURCE_DIR}/render/RenderTypes.h
+    ${SOFAGLFW_SOURCE_DIR}/render/IRenderBackend.h
+    ${SOFAGLFW_SOURCE_DIR}/render/ISceneRenderer.h
+    ${SOFAGLFW_SOURCE_DIR}/render/IVideoRecorder.h
+    ${SOFAGLFW_SOURCE_DIR}/render/RenderBackendFactory.h
 )
 
 set(SOURCE_FILES
@@ -59,7 +85,37 @@ set(SOURCE_FILES
     ${SOFAGLFW_SOURCE_DIR}/NullGUIEngine.cpp
     ${SOFAGLFW_SOURCE_DIR}/SofaGLFWBaseGUI.cpp
     ${SOFAGLFW_SOURCE_DIR}/SofaGLFWMouseManager.cpp
+    ${SOFAGLFW_SOURCE_DIR}/render/RenderBackendFactory.cpp
 )
+
+# bgfx backend translation units (only the bgfx TUs include <bgfx/*>)
+if(BGFXPlugin_FOUND)
+    LIST(APPEND HEADER_FILES
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/RenderBackendBGFX.h
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/SceneRendererBGFX.h
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxNativeWindow.h
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxScreenshotCallback.h
+    )
+    LIST(APPEND SOURCE_FILES
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/RenderBackendBGFX.cpp
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/SceneRendererBGFX.cpp
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxNativeWindow.cpp
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxScreenshotCallback.cpp
+    )
+endif()
+
+# OpenGL backend translation units (only the gl TUs include <GL/*>, Sofa.GL)
+if(Sofa.GL_FOUND)
+    LIST(APPEND HEADER_FILES
+        ${SOFAGLFW_SOURCE_DIR}/render/gl/RenderBackendGL.h
+        ${SOFAGLFW_SOURCE_DIR}/render/gl/SceneRendererGL.h
+    )
+    LIST(APPEND SOURCE_FILES
+        ${SOFAGLFW_SOURCE_DIR}/render/gl/RenderBackendGL.cpp
+        ${SOFAGLFW_SOURCE_DIR}/render/gl/SceneRendererGL.cpp
+        ${SOFAGLFW_SOURCE_DIR}/render/gl/VideoRecorderGL.cpp
+    )
+endif()
 
 if(Sofa.GUI.Common_FOUND)
     LIST(APPEND HEADER_FILES ${SOFAGLFW_SOURCE_DIR}/SofaGLFWGUI.h)
@@ -77,9 +133,14 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 if(BGFXPlugin_FOUND)
-    message("${PROJECT_NAME}: BGFXPlugin support enabled.")
+    message("${PROJECT_NAME}: BGFXPlugin (bgfx) rendering backend enabled.")
     target_link_libraries(${PROJECT_NAME} PUBLIC BGFXPlugin)
     target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../SofaImGui/resources")
+endif()
+
+if(Sofa.GL_FOUND)
+    message("${PROJECT_NAME}: Sofa.GL (legacy OpenGL) rendering backend enabled.")
+    target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.GL)
 endif()
 
 if(Sofa.GUI.Common_FOUND)

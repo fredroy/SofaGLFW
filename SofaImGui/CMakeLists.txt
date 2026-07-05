@@ -14,10 +14,16 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 sofa_find_package(BGFXPlugin QUIET)
+sofa_find_package(Sofa.GL QUIET)
 if(BGFXPlugin_FOUND)
     set(SOFAIMGUI_USE_BGFX ON)
 else()
     set(SOFAIMGUI_USE_BGFX OFF)
+endif()
+
+if(NOT BGFXPlugin_FOUND AND NOT Sofa.GL_FOUND)
+    message(FATAL_ERROR "${PROJECT_NAME}: neither BGFXPlugin nor Sofa.GL found. "
+        "At least one rendering backend is required.")
 endif()
 
 
@@ -103,11 +109,14 @@ set(IMGUI_SOURCE_FILES
     resources/Style.cpp
 )
 
+# Both ImGui renderer backends can be compiled in; the platform is chosen at
+# runtime. Each backend's ImGui impl is compiled only if its plugin is present.
 if(SOFAIMGUI_USE_BGFX)
     list(APPEND IMGUI_SOURCE_FILES
         ${SOFAIMGUI_SOURCE_DIR}/imgui_impl_bgfx.cpp
     )
-else()
+endif()
+if(Sofa.GL_FOUND)
     list(APPEND IMGUI_SOURCE_FILES
         ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp
@@ -140,6 +149,10 @@ set(HEADER_FILES
     ${SOFAIMGUI_SOURCE_DIR}/windows/WindowState.h
     ${SOFAIMGUI_SOURCE_DIR}/guis/BaseAdditionalGUI.h
     ${SOFAIMGUI_SOURCE_DIR}/guis/AdditionalGUIRegistry.h
+    ${SOFAIMGUI_SOURCE_DIR}/windows/ViewPort.h
+    # Backend-agnostic ImGui platform abstraction
+    ${SOFAIMGUI_SOURCE_DIR}/render/IImGuiPlatform.h
+    ${SOFAIMGUI_SOURCE_DIR}/render/ImGuiPlatformFactory.h
 )
 
 set(SOURCE_FILES
@@ -167,7 +180,20 @@ set(SOURCE_FILES
     ${SOFAIMGUI_SOURCE_DIR}/windows/WindowState.cpp
     ${SOFAIMGUI_SOURCE_DIR}/guis/AdditionalGUIRegistry.cpp
     ${SOFAIMGUI_SOURCE_DIR}/guis/BaseAdditionalGUI.cpp
+    ${SOFAIMGUI_SOURCE_DIR}/render/ImGuiPlatformFactory.cpp
 )
+
+# bgfx ImGui platform (compiled only when BGFXPlugin is present)
+if(SOFAIMGUI_USE_BGFX)
+    list(APPEND HEADER_FILES ${SOFAIMGUI_SOURCE_DIR}/render/bgfx/ImGuiPlatformBGFX.h)
+    list(APPEND SOURCE_FILES ${SOFAIMGUI_SOURCE_DIR}/render/bgfx/ImGuiPlatformBGFX.cpp)
+endif()
+
+# OpenGL ImGui platform (compiled only when Sofa.GL is present)
+if(Sofa.GL_FOUND)
+    list(APPEND HEADER_FILES ${SOFAIMGUI_SOURCE_DIR}/render/gl/ImGuiPlatformGL.h)
+    list(APPEND SOURCE_FILES ${SOFAIMGUI_SOURCE_DIR}/render/gl/ImGuiPlatformGL.cpp)
+endif()
 
 
 set(IMGUI_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/resources ${imgui_SOURCE_DIR} ${ImPlot_SOURCE_DIR} ${IconFontCppHeaders_SOURCE_DIR} ${simpleini_SOURCE_DIR})
@@ -181,6 +207,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE nfd::nfd)
 
 if(Sofa.GL.Component.Rendering3D_FOUND)
     target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.GL.Component.Rendering3D)
+endif()
+
+if(Sofa.GL_FOUND)
+    target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.GL)
 endif()
 
 if(SOFAIMGUI_USE_BGFX)

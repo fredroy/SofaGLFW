@@ -24,28 +24,14 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#if BX_PLATFORM_LINUX
-#    if ENTRY_CONFIG_USE_WAYLAND
-#        include <wayland-egl.h>
-#        define GLFW_EXPOSE_NATIVE_WAYLAND
-#    else
-#        define GLFW_EXPOSE_NATIVE_X11
-#        define GLFW_EXPOSE_NATIVE_GLX
-#    endif
-#elif BX_PLATFORM_OSX
-#    define GLFW_EXPOSE_NATIVE_COCOA
-#    define GLFW_EXPOSE_NATIVE_NSGL
-#elif BX_PLATFORM_WINDOWS
-#    define GLFW_EXPOSE_NATIVE_WIN32
-#    define GLFW_EXPOSE_NATIVE_WGL
-#endif //
-
-#include <GLFW/glfw3native.h>
-
 #include <SofaGLFW/SofaGLFWWindow.h>
 #include <SofaGLFW/config.h>
 
 #include <SofaGLFW/SofaGLFWMouseManager.h>
+
+#include <SofaGLFW/render/IRenderBackend.h>
+#include <SofaGLFW/render/IVideoRecorder.h>
+#include <SofaGLFW/render/RenderBackendFactory.h>
 
 #include <sofa/helper/logging/Messaging.h>
 #include <sofa/helper/AdvancedTimer.h>
@@ -71,98 +57,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <map>
-
-#include <sofa/gui/common/BaseViewer.h>
-#include <sofa/gui/common/BaseGUI.h>
-#include <sofa/gui/common/PickHandler.h>
-
-#include <BGFXPlugin/DrawToolBGFX.h>
-#include <bgfx/bgfx.h>
-#include <bx/file.h>
-
-namespace
-{
-
-struct BgfxScreenshotCallback : bgfx_callback_interface_t
-{
-    static bgfx_callback_vtbl_t s_vtbl;
-
-    BgfxScreenshotCallback()
-    {
-        vtbl = &s_vtbl;
-    }
-
-    static void fatal(bgfx_callback_interface_t*, const char*, uint16_t, bgfx_fatal_t, const char*) {}
-    static void traceVargs(bgfx_callback_interface_t*, const char*, uint16_t, const char*, va_list) {}
-    static void profilerBegin(bgfx_callback_interface_t*, const char*, uint32_t, const char*, uint16_t) {}
-    static void profilerBeginLiteral(bgfx_callback_interface_t*, const char*, uint32_t, const char*, uint16_t) {}
-    static void profilerEnd(bgfx_callback_interface_t*) {}
-    static uint32_t cacheReadSize(bgfx_callback_interface_t*, uint64_t) { return 0; }
-    static bool cacheRead(bgfx_callback_interface_t*, uint64_t, void*, uint32_t) { return false; }
-    static void cacheWrite(bgfx_callback_interface_t*, uint64_t, const void*, uint32_t) {}
-
-    static void screenShot(bgfx_callback_interface_t*, const char* filePath, uint32_t width,
-        uint32_t height, uint32_t pitch, bgfx_texture_format_t format, const void* data,
-        uint32_t /*size*/, bool yflip)
-    {
-        if (!filePath || !data)
-            return;
-
-        sofa::helper::io::STBImage image;
-        image.init(width, height, 1, 1,
-            sofa::helper::io::Image::DataType::UINT32,
-            sofa::helper::io::Image::ChannelFormat::RGBA);
-
-        const uint8_t* src = static_cast<const uint8_t*>(data);
-        uint8_t* dst = image.getPixels();
-        const uint32_t dstPitch = width * 4;
-
-        for (uint32_t row = 0; row < height; ++row)
-        {
-            uint32_t srcRow = yflip ? row : (height - 1 - row);
-            const uint8_t* srcLine = src + srcRow * pitch;
-
-            if (format == BGFX_TEXTURE_FORMAT_RGBA8)
-            {
-                memcpy(dst + row * dstPitch, srcLine, dstPitch);
-            }
-            else if (format == BGFX_TEXTURE_FORMAT_BGRA8)
-            {
-                for (uint32_t x = 0; x < width; ++x)
-                {
-                    dst[row * dstPitch + x * 4 + 0] = srcLine[x * 4 + 2];
-                    dst[row * dstPitch + x * 4 + 1] = srcLine[x * 4 + 1];
-                    dst[row * dstPitch + x * 4 + 2] = srcLine[x * 4 + 0];
-                    dst[row * dstPitch + x * 4 + 3] = srcLine[x * 4 + 3];
-                }
-            }
-        }
-        image.save(filePath, 90);
-    }
-
-    static void captureBegin(bgfx_callback_interface_t*, uint32_t, uint32_t, uint32_t, bgfx_texture_format_t, bool) {}
-    static void captureEnd(bgfx_callback_interface_t*) {}
-    static void captureFrame(bgfx_callback_interface_t*, const void*, uint32_t) {}
-};
-
-bgfx_callback_vtbl_t BgfxScreenshotCallback::s_vtbl = {
-    BgfxScreenshotCallback::fatal,
-    BgfxScreenshotCallback::traceVargs,
-    BgfxScreenshotCallback::profilerBegin,
-    BgfxScreenshotCallback::profilerBeginLiteral,
-    BgfxScreenshotCallback::profilerEnd,
-    BgfxScreenshotCallback::cacheReadSize,
-    BgfxScreenshotCallback::cacheRead,
-    BgfxScreenshotCallback::cacheWrite,
-    BgfxScreenshotCallback::screenShot,
-    BgfxScreenshotCallback::captureBegin,
-    BgfxScreenshotCallback::captureEnd,
-    BgfxScreenshotCallback::captureFrame,
-};
-
-static BgfxScreenshotCallback s_bgfxCallback;
-
-} // anonymous namespace
 
 using namespace sofa;
 using namespace sofa::gui::common;
@@ -215,58 +109,6 @@ namespace
 namespace sofaglfw
 {
 
-static void* glfwNativeWindowHandle(GLFWwindow* _window)
-    {
-#    if BX_PLATFORM_LINUX
-#         if ENTRY_CONFIG_USE_WAYLAND
-        wl_egl_window *win_impl = (wl_egl_window*)glfwGetWindowUserPointer(_window);
-        if(!win_impl)
-        {
-            int width, height;
-            glfwGetWindowSize(_window, &width, &height);
-            struct wl_surface* surface = (struct wl_surface*)glfwGetWaylandWindow(_window);
-            if(!surface)
-                return nullptr;
-            win_impl = wl_egl_window_create(surface, width, height);
-            glfwSetWindowUserPointer(_window, (void*)(uintptr_t)win_impl);
-        }
-        return (void*)(uintptr_t)win_impl;
-#        else
-        return (void*)(uintptr_t)glfwGetX11Window(_window);
-#        endif
-#    elif BX_PLATFORM_OSX
-        return glfwGetCocoaWindow(_window);
-#    elif BX_PLATFORM_WINDOWS
-        return glfwGetWin32Window(_window);
-#    endif // BX_PLATFORM_
-    }
-
-void* getNativeDisplayHandle()
-{
-#    if BX_PLATFORM_LINUX
-#        if ENTRY_CONFIG_USE_WAYLAND
-    return glfwGetWaylandDisplay();
-#        else
-    return glfwGetX11Display();
-#        endif // ENTRY_CONFIG_USE_WAYLAND
-#    else
-    return nullptr;
-#    endif // BX_PLATFORM_*
-}
-
-bgfx_native_window_handle_type getNativeWindowHandleType()
-{
-#    if BX_PLATFORM_LINUX
-#        if ENTRY_CONFIG_USE_WAYLAND
-    return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_WAYLAND;
-#        else
-    return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_DEFAULT;
-#        endif // ENTRY_CONFIG_USE_WAYLAND
-#    else
-    return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_DEFAULT;
-#    endif // BX_PLATFORM_*
-}
-
 SofaGLFWBaseGUI::SofaGLFWBaseGUI()
 {
     m_guiEngine = std::make_shared<NullGUIEngine>();
@@ -280,47 +122,6 @@ SofaGLFWBaseGUI::~SofaGLFWBaseGUI()
 core::sptr<Node> SofaGLFWBaseGUI::getRootNode() const
 {
     return this->groot;
-}
-
-bool SofaGLFWBaseGUI::initEngine(uint32_t width, uint32_t height, GLFWwindow* glfwWindow)
-{
-   // m_debug = BGFX_DEBUG_NONE;
-    m_debug = BGFX_DEBUG_TEXT;
-    m_reset = BGFX_RESET_VSYNC | BGFX_RESET_HIDPI;
-    //m_reset = BGFX_RESET_NONE; // disable vsync
-
-    bgfx_init_t init;
-    bgfx_init_ctor(&init);
-
-    init.type     = m_type;
-    init.platformData.nwh = glfwNativeWindowHandle(glfwWindow);
-    init.platformData.ndt = getNativeDisplayHandle();
-    init.platformData.type = getNativeWindowHandleType();
-    init.debug = true;
-
-    int fbWidth, fbHeight;
-    glfwGetFramebufferSize(glfwWindow, &fbWidth, &fbHeight);
-
-    init.resolution.width = fbWidth;
-    init.resolution.height = fbHeight;
-    init.resolution.reset = m_reset;
-    init.callback = &s_bgfxCallback;
-
-    const auto res = bgfx_init(&init);
-
-    bgfx_reset(fbWidth, fbHeight, m_reset, init.resolution.formatColor);
-
-    // Enable debug text.
-    bgfx_set_debug(m_debug);
-
-    bgfx_set_view_clear(0
-        , BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH
-        , 0x303030ff
-        , 1.0f
-        , 0
-    );
-
-    return res;
 }
 
 bool SofaGLFWBaseGUI::init(int nbMSAASamples)
@@ -344,29 +145,37 @@ bool SofaGLFWBaseGUI::init(int nbMSAASamples)
 
     if (glfwInit() == GLFW_TRUE)
     {
-        // defined samples for MSAA
-        // min = 0  (no MSAA Anti-aliasing)
-        // max = 32 (MSAA with 32 samples)
+        // Resolve and create the rendering backend at runtime.
+        auto& factory = render::RenderBackendFactory::getInstance();
+        m_renderAPI = factory.resolve(render::RenderAPI::Auto);
+        m_backend = factory.createBackend(m_renderAPI);
 
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
-        //glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-        
-        //glfwWindowHint(GLFW_SAMPLES, std::clamp(nbMSAASamples, 0, 32) );
+        if (!m_backend)
+        {
+            msg_error("SofaGLFWBaseGUI") << "No rendering backend available (need Sofa.GL or BGFXPlugin).";
+            return false;
+        }
+        msg_info("SofaGLFWBaseGUI") << "Using " << render::toString(m_renderAPI) << " rendering backend.";
 
-#if SOFAGLFW_HAVE_BGFXPLUGIN == 1
-        m_drawTool = std::make_unique<bgfxplugin::DrawToolBGFX>();
-#else
-        m_drawTool = std::make_unique<DrawToolGL>();
-        sofa::core::visual::VisualParams::defaultInstance()->setSupported(sofa::core::visual::API_OpenGL);
-#endif
+        // GLFW window/context hints depend on the backend: bgfx manages the
+        // surface itself (GLFW_NO_API), OpenGL needs a GLFW-created context.
+        if (m_backend->needsGlfwContext())
+        {
+            // defined samples for MSAA (min = 0, max = 32)
+            glfwWindowHint(GLFW_SAMPLES, std::clamp(nbMSAASamples, 0, 32));
+        }
+        else
+        {
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        }
 
-        // Replace generic visual models and OglModel with BGFXModel
-        sofa::core::ObjectFactory::ClassEntry::SPtr classVisualModel;
-        sofa::core::ObjectFactory::AddAlias("VisualModel", "BGFXModel", true,
-            &classVisualModel);
-        sofa::core::ObjectFactory::AddAlias("OglModel", "BGFXModel", true,
-            &classVisualModel);
+        m_drawTool = m_backend->makeDrawTool();
+        m_backend->configureVisualParams();
+        m_backend->registerVisualModelAliases();
+
+        // A concrete video recorder is available only when a backend registers
+        // one (OpenGL). Otherwise recording is silently unavailable.
+        m_videoRecorder = render::createVideoRecorder();
 
         m_bGlfwIsInitialized = true;
         return true;
@@ -536,13 +345,13 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
         setWindowIcon(glfwWindow);
     }
 #endif
-    
+
     if (!m_firstWindow)
         m_firstWindow = glfwWindow;
 
     if (glfwWindow)
     {
-        
+
         glfwSetKeyCallback(glfwWindow, key_callback);
         glfwSetCursorPosCallback(glfwWindow, cursor_position_callback);
         glfwSetMouseButtonCallback(glfwWindow, mouse_button_callback);
@@ -565,11 +374,11 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
 
         s_mapGUIs[glfwWindow] = this;
 
-        initEngine(width, height, glfwWindow);
+        m_backend->initEngine(glfwWindow, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 
         m_guiEngine->initBackend(glfwWindow);
 
-        SofaGLFWWindow* sofaWindow = new SofaGLFWWindow(glfwWindow, this->currentCamera);
+        SofaGLFWWindow* sofaWindow = new SofaGLFWWindow(glfwWindow, this->currentCamera, m_renderAPI);
 
         s_mapWindows[glfwWindow] = sofaWindow;
 
@@ -717,13 +526,10 @@ void SofaGLFWBaseGUI::setWindowTitle(GLFWwindow* window, const char* title)
 
 void SofaGLFWBaseGUI::makeCurrentContext(GLFWwindow* glfwWindow)
 {
-    //glfwMakeContextCurrent(glfwWindow);
-    //glfwSwapInterval( 0 ); //request disabling vsync
-    if (!m_bGlewIsInitialized)
-    {
-        //glewInit();
-        m_bGlewIsInitialized = true;
-    }
+    // The GLFW/GL context (if any) is managed by the backend during initEngine.
+    // For bgfx, no GL context is created for the window at all.
+    SOFA_UNUSED(glfwWindow);
+    m_bGlewIsInitialized = true;
 }
 
 std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
@@ -750,7 +556,7 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
         // Keep running
         runStep();
         sofa::type::vector<std::pair<GLFWwindow*, SofaGLFWWindow*>> closedWindows;
-        
+
         for (auto& [glfwWindow, sofaGlfwWindow] : s_mapWindows)
         {
             if (glfwWindow && sofaGlfwWindow)
@@ -758,8 +564,6 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                 // while user did not request to close this window (i.e press escape), draw
                 if (!glfwWindowShouldClose(glfwWindow) && !m_guiEngine->isTerminated())
                 {
-                    //makeCurrentContext(glfwWindow);
-
                     m_guiEngine->beforeDraw(glfwWindow);
                     sofaGlfwWindow->draw(this->groot, m_vparams);
 
@@ -769,21 +573,18 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
 
                     m_guiEngine->startFrame(this);
                     m_guiEngine->endFrame();
-                    
+
                     m_viewPortHeight = m_vparams->viewport()[3];
                     m_viewPortWidth = m_vparams->viewport()[2];
-                    
-#ifdef SOFA_HAVE_SOFA_GL
-                    // Read framebuffer
-                    if(this->groot->getAnimate() && this->m_bVideoRecording)
+
+                    // Read framebuffer for video recording (only supported by
+                    // backends providing synchronous read-back; no-op otherwise)
+                    if(this->groot->getAnimate() && this->m_bVideoRecording && m_videoRecorder)
                     {
                         const auto [width, height] = this->m_guiEngine->getFrameBufferPixels(pixels);
-                        m_videoRecorderFFMPEG.addFrame(pixels.data(), width, height);
+                        if (width > 0 && height > 0)
+                            m_videoRecorder->addFrame(pixels.data(), width, height);
                     }
-#endif // SOFA_HAVE_SOFA_GL
-
-                    // glfwSwapBuffers(glfwWindow);
-
                 }
                 else
                 {
@@ -842,41 +643,12 @@ void SofaGLFWBaseGUI::initVisual()
         visualStyle->init();
     }
 
-    ////init gl states
-    //glDepthFunc(GL_LEQUAL);
-    //glClearDepth(1.0);
-    //glEnable(GL_NORMALIZE);
-
-    //glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-
-    // Setup 'light 0'
-    // float lightAmbient[4] = { 0.5f, 0.5f, 0.5f,1.0f };
-    // float lightDiffuse[4] = { 0.9f, 0.9f, 0.9f,1.0f };
-    // float lightSpecular[4] = { 1.0f, 1.0f, 1.0f,1.0f };
-    // float lightPosition[4] = { -0.7f, 0.3f, 0.0f,1.0f };
-    // glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmbient);
-    // glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDiffuse);
-    // glLightfv(GL_LIGHT0, GL_SPECULAR, lightSpecular);
-    // glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
-
-    // // Enable color tracking
-    // glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
-
-    //// All materials hereafter have full specular reflectivity with a high shine
-    //float materialSpecular[4] = { 1.0f, 1.0f, 1.0f,1.0f };
-    //glMaterialfv(GL_FRONT, GL_SPECULAR, materialSpecular);
-    //glMateriali(GL_FRONT, GL_SHININESS, 128);
-
-    //glShadeModel(GL_SMOOTH);
-
-    //glEnable(GL_LIGHT0);
-
     m_vparams = VisualParams::defaultInstance();
     for (auto& [glfwWindow, sofaGlfwWindow] : s_mapWindows)
     {
         sofaGlfwWindow->centerCamera(this->groot, m_vparams);
     }
-    
+
     setWindowBackgroundImage("textures/SOFA_logo.bmp", 0);
 }
 
@@ -900,14 +672,25 @@ void SofaGLFWBaseGUI::terminate()
 
     if (m_guiEngine)
         m_guiEngine->terminate();
-    
-#ifdef SOFA_HAVE_SOFA_GL
-    if(m_bVideoRecording)
+
+    if(m_bVideoRecording && m_videoRecorder)
     {
-        m_videoRecorderFFMPEG.finishVideo();
+        m_videoRecorder->finish();
+        m_bVideoRecording = false;
     }
-#endif // SOFA_HAVE_SOFA_GL
-    
+
+    // Release all backend GPU resources BEFORE shutting the engine down, so their
+    // destructors (which free GPU programs/textures) still run against a live
+    // context. The DrawTool holds bgfx programs and would otherwise crash in
+    // its destructor after bgfx_shutdown().
+    if (m_vparams)
+        m_vparams->drawTool() = nullptr;
+    sofa::core::visual::VisualParams::defaultInstance()->drawTool() = nullptr;
+    m_drawTool.reset();
+
+    if (m_backend)
+        m_backend->terminate();
+
     glfwTerminate();
 }
 
@@ -960,7 +743,7 @@ void SofaGLFWBaseGUI::key_callback(GLFWwindow* window, int key, int scancode, in
     // Key events are forwarded to SOFA using: CTRL + SHIFT
     if (isCtrlKeyPressed && isShiftKeyPressed)
     {
-        
+
         if (action == GLFW_PRESS || action == GLFW_REPEAT)
         {
             KeypressedEvent keyPressedEvent(keyName);
@@ -1097,7 +880,7 @@ void SofaGLFWBaseGUI::key_callback(GLFWwindow* window, int key, int scancode, in
                 }
                 break;
             }
-            // R: Reload the file
+            // O: Open a file
             case GLFW_KEY_O:
             {
                 currentGUI->m_guiEngine->openFile(currentGUI, currentGUI->groot);
@@ -1290,58 +1073,37 @@ void SofaGLFWBaseGUI::framebuffer_size_callback(GLFWwindow* window, int width, i
     SOFA_UNUSED(width);
     SOFA_UNUSED(height);
     auto currentGUI = s_mapGUIs[window];
-    if (currentGUI)
+    if (currentGUI && currentGUI->m_backend)
     {
         int w, h;
         glfwGetWindowSize(window, &w, &h);
         float xscale = 1.0f, yscale = 1.0f;
         glfwGetWindowContentScale(window, &xscale, &yscale);
-        bgfx_reset(static_cast<uint32_t>(w * xscale), static_cast<uint32_t>(h * yscale),
-                   currentGUI->m_reset, BGFX_TEXTURE_FORMAT_COUNT);
+        currentGUI->m_backend->resize(static_cast<uint32_t>(w * xscale),
+                                      static_cast<uint32_t>(h * yscale));
     }
-}
-
-void SofaGLFWBaseGUI::applyReset()
-{
-    int w, h;
-    glfwGetWindowSize(m_firstWindow, &w, &h);
-    float xscale = 1.0f, yscale = 1.0f;
-    glfwGetWindowContentScale(m_firstWindow, &xscale, &yscale);
-    bgfx_reset(static_cast<uint32_t>(w * xscale), static_cast<uint32_t>(h * yscale),
-               m_reset, BGFX_TEXTURE_FORMAT_COUNT);
 }
 
 void SofaGLFWBaseGUI::setVsync(bool enabled)
 {
-    if (enabled)
-        m_reset |= BGFX_RESET_VSYNC;
-    else
-        m_reset &= ~BGFX_RESET_VSYNC;
-    applyReset();
+    if (m_backend)
+        m_backend->setVsync(enabled);
+}
+
+bool SofaGLFWBaseGUI::isVsync() const
+{
+    return m_backend ? m_backend->isVsync() : false;
 }
 
 void SofaGLFWBaseGUI::setMsaa(int level)
 {
-    m_reset &= ~BGFX_RESET_MSAA_MASK;
-    switch (level)
-    {
-    case 2:  m_reset |= BGFX_RESET_MSAA_X2;  break;
-    case 4:  m_reset |= BGFX_RESET_MSAA_X4;  break;
-    case 8:  m_reset |= BGFX_RESET_MSAA_X8;  break;
-    case 16: m_reset |= BGFX_RESET_MSAA_X16; break;
-    default: break;
-    }
-    applyReset();
+    if (m_backend)
+        m_backend->setMsaa(level);
 }
 
 int SofaGLFWBaseGUI::getMsaa() const
 {
-    const uint32_t msaa = m_reset & BGFX_RESET_MSAA_MASK;
-    if (msaa == BGFX_RESET_MSAA_X16) return 16;
-    if (msaa == BGFX_RESET_MSAA_X8)  return 8;
-    if (msaa == BGFX_RESET_MSAA_X4)  return 4;
-    if (msaa == BGFX_RESET_MSAA_X2)  return 2;
-    return 0;
+    return m_backend ? m_backend->getMsaa() : 0;
 }
 
 void SofaGLFWBaseGUI::cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
@@ -1404,42 +1166,16 @@ void SofaGLFWBaseGUI::window_focus_callback(GLFWwindow* window, int focused)
 {
     SOFA_UNUSED(window);
     SOFA_UNUSED(focused);
-    //if (focused)
-    //{
-    //    // The window gained input focus
-    //}
-    //else
-    //{
-    //    // The window lost input focus
-    //}
 }
 void SofaGLFWBaseGUI::cursor_enter_callback(GLFWwindow* window, int entered)
 {
     SOFA_UNUSED(window);
     SOFA_UNUSED(entered);
-
-    //if (entered)
-    //{
-    //    // The cursor entered the content area of the window
-    //}
-    //else
-    //{
-    //    // The cursor left the content area of the window
-    //}
 }
 void SofaGLFWBaseGUI::monitor_callback(GLFWmonitor* monitor, int event)
 {
     SOFA_UNUSED(monitor);
     SOFA_UNUSED(event);
-
-    //if (event == GLFW_CONNECTED)
-    //{
-    //    // The monitor was connected
-    //}
-    //else if (event == GLFW_DISCONNECTED)
-    //{
-    //    // The monitor was disconnected
-    //}
 }
 
 void SofaGLFWBaseGUI::character_callback(GLFWwindow* window, unsigned int codepoint)
@@ -1536,17 +1272,23 @@ bool SofaGLFWBaseGUI::centerWindow(GLFWwindow* window)
 
 void SofaGLFWBaseGUI::saveScreenshot(const std::string& filePath)
 {
-    bgfx_frame_buffer_handle_t handle = BGFX_INVALID_HANDLE;
-    bgfx_request_screen_shot(handle, filePath.c_str());
+    // Delegate to the GUI engine's screenshot mechanism (backend-specific,
+    // handled by the ImGui platform). The Null engine defers to itself.
+    m_guiEngine->saveNamedScreenshot(this, filePath, -1);
 }
 
 void SofaGLFWBaseGUI::toggleVideoRecording()
 {
-#ifdef SOFA_HAVE_SOFA_GL
+    if (!m_videoRecorder)
+    {
+        msg_warning("SofaGLFWBaseGUI") << "Video recording is not supported by the current rendering backend.";
+        return;
+    }
+
     if(m_bVideoRecording)
     {
         m_bVideoRecording = false;
-        m_videoRecorderFFMPEG.finishVideo();
+        m_videoRecorder->finish();
         msg_info("SofaGLFWBaseGUI") << "End recording";
     }
     else
@@ -1558,7 +1300,7 @@ void SofaGLFWBaseGUI::toggleVideoRecording()
         const unsigned int bitrate = 2000000;
         const std::string codecExtension = "mp4";
         const std::string codecName = "yuv420p";
-        
+
         if(initRecorder(width, height, framerate, bitrate, codecExtension, codecName))
         {
             m_bVideoRecording = true;
@@ -1569,11 +1311,13 @@ void SofaGLFWBaseGUI::toggleVideoRecording()
             msg_error("SofaGLFWBaseGUI") << "Failed to initialize recorder";
         }
     }
-#endif // SOFA_HAVE_SOFA_GL
 }
 
 bool SofaGLFWBaseGUI::initRecorder(int width, int height, unsigned int framerate, unsigned int bitrate, const std::string& codecExtension, const std::string& codecName)
 {
+    if (!m_videoRecorder)
+        return false;
+
     // Validate parameters
     if (width <= 0 || height <= 0)
     {
@@ -1581,7 +1325,6 @@ bool SofaGLFWBaseGUI::initRecorder(int width, int height, unsigned int framerate
         return false;
     }
 
-    bool res = true;
     std::string ffmpeg_exec_path = "";
     const std::string ffmpegIniFilePath = sofa::helper::Utils::getSofaPathTo("etc/SofaGLFW.ini");
     std::map<std::string, std::string> iniFileValues = sofa::helper::Utils::readBasicIniFile(ffmpegIniFilePath);
@@ -1597,15 +1340,7 @@ bool SofaGLFWBaseGUI::initRecorder(int width, int height, unsigned int framerate
         " The initialization of the FFMPEG video recorder will likely fail. To fix this, provide a valid path to the ffmpeg executable inside this file using the syntax \"FFMPEG_EXEC_PATH=/usr/bin/ffmpeg\".";
     }
 
-#ifdef SOFA_HAVE_SOFA_GL
-    const std::string videoFilename = m_videoRecorderFFMPEG.findFilename(framerate, bitrate / 1024, codecExtension);
-
-    res = m_videoRecorderFFMPEG.init(ffmpeg_exec_path, videoFilename, width, height, framerate, bitrate, codecName);
-
-    return res;
-#else
-    return false;
-#endif
+    return m_videoRecorder->init(ffmpeg_exec_path, width, height, framerate, bitrate, codecExtension, codecName);
 }
 
 

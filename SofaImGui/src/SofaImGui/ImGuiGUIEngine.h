@@ -25,11 +25,7 @@
 #include <array>
 #include <memory>
 #include <SofaGLFW/BaseGUIEngine.h>
-#if SOFAIMGUI_USE_BGFX == 1
-#include <bgfx/c99/bgfx.h>
-#else
-#include <sofa/gl/FrameBufferObject.h>
-#endif
+#include <SofaGLFW/render/RenderAPI.h>
 
 #include "guis/AdditionalGUIRegistry.h"
 #include "windows/WindowState.h"
@@ -42,6 +38,11 @@ struct GLFWmonitor;
 namespace sofa::glfw
 {
     class SofaGLFWBaseGUI;
+}
+
+namespace sofaimgui::render
+{
+    class IImGuiPlatform;
 }
 
 namespace sofaimgui
@@ -84,24 +85,9 @@ public:
     void saveScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI);
 
 protected:
-#if SOFAIMGUI_USE_BGFX == 1
-    bgfx_frame_buffer_handle_t m_sceneFB{UINT16_MAX};
-    bgfx_texture_handle_t m_sceneFBTexture{UINT16_MAX};
-    uint16_t m_sceneFBWidth{0};
-    uint16_t m_sceneFBHeight{0};
-    void recreateSceneFB(uint16_t width, uint16_t height);
+    std::unique_ptr<render::IImGuiPlatform> m_platform;
+    sofaglfw::render::RenderAPI m_renderAPI{ sofaglfw::render::RenderAPI::Auto };
 
-    bgfx_texture_handle_t m_readbackTexture{UINT16_MAX};
-    uint16_t m_readbackWidth{0};
-    uint16_t m_readbackHeight{0};
-    std::vector<uint8_t> m_readbackData;
-    uint32_t m_readbackFrame{0};
-    bool m_readbackPending{false};
-    void processScreenshotReadback();
-#else
-    std::unique_ptr<sofa::gl::FrameBufferObject> m_fbo;
-    std::pair<unsigned int, unsigned int> m_currentFBOSize;
-#endif
     std::pair<float, float> m_viewportWindowSize;
     std::array<int, 4> m_viewportRect {}; // x, y, w, h in framebuffer pixels for bgfx rendering
     std::array<int, 4> m_viewportScreenRect {}; // x, y, w, h in screen pixels for overlay positioning
@@ -138,11 +124,7 @@ protected:
     std::string m_pendingScreenshotPath;
     bool m_isTerminated{ false };
     std::size_t m_frameCount{0};
-#if SOFAIMGUI_USE_BGFX != 1
-    static inline constexpr int s_NB_PBOS = 2;
-    GLuint m_pbos[s_NB_PBOS];
-    sofa::type::Vec2i m_pboSize;
-#endif
+    uint32_t m_lastPresentedFrame{0};
 };
 
 } // namespace sofaimgui

@@ -28,21 +28,22 @@
 #include <array>
 
 namespace sofaglfw { class SofaGLFWBaseGUI; }
+namespace sofaimgui::render { class IImGuiPlatform; }
 
 namespace windows
 {
 
-#if SOFAIMGUI_USE_BGFX != 1
         /**
          * @brief Displays the viewport window.
          *
-         * This function renders the viewport window, showing the scene rendered into a frame buffer object (FBO).
-         * It also provides options to show/hide grid, axis, and frame within the viewport.
+         * Renders the viewport window, showing the scene rendered into the
+         * backend-agnostic offscreen target owned by the ImGui platform. It also
+         * provides options to show/hide grid, axis, and gizmos within the viewport.
          *
          * @param groot The root node of the scene to be rendered.
          * @param windowNameViewport The name of the viewport window.
          * @param ini The INI file object containing application settings.
-         * @param m_fbo The frame buffer object (FBO) used for rendering the scene.
+         * @param platform The ImGui platform providing the scene texture.
          * @param m_viewportWindowSize A reference to a pair representing the width and height of the viewport window.
          * @param isMouseOnViewport A reference to a boolean flag indicating if the mouse cursor is over the viewport.
          * @param winManagerViewPort The state manager for the viewport window.
@@ -53,19 +54,13 @@ namespace windows
         void showViewPort(sofa::core::sptr<sofa::simulation::Node> groot,
                           const char* const& windowNameViewport,
                           const CSimpleIniA &ini,
-                          std::unique_ptr<sofa::gl::FrameBufferObject>& m_fbo,
+                          sofaimgui::render::IImGuiPlatform* platform,
                           std::pair<float, float>& m_viewportWindowSize,
                           bool & isMouseOnViewport,
                           WindowState& winManagerViewPort,
                           sofaglfw::SofaGLFWBaseGUI* baseGUI,
                           bool& isViewportDisplayedForTheFirstTime,
                           sofa::type::Vec2f& lastViewPortPos);
-#endif
-
-        void showViewPortOverlay(sofa::core::sptr<sofa::simulation::Node> groot,
-                                 const CSimpleIniA &ini,
-                                 sofaglfw::SofaGLFWBaseGUI* baseGUI,
-                                 const std::array<int, 4>& viewportRect);
 
         /**
          * @brief Checks if the viewport position has moved beyond a specified threshold.
