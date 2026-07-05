@@ -19,22 +19,19 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#pragma once
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+#include <bgfx/c99/bgfx.h>
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+struct GLFWwindow;
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
+namespace sofaglfw::render
+{
 
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
+/// Platform-specific native handles needed to hand the GLFW surface to bgfx.
+/// The platform #if lives here, isolated in a bgfx-only translation unit.
+void* bgfxNativeWindowHandle(GLFWwindow* window);
+void* bgfxNativeDisplayHandle();
+bgfx_native_window_handle_type bgfxNativeWindowHandleType();
 
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+} // namespace sofaglfw::render

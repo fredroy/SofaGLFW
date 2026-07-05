@@ -30,11 +30,7 @@
 #include <memory>
 
 #include <SofaGLFW/SofaGLFWMouseManager.h>
-#include <bgfx/c99/bgfx.h>
-
-#ifdef SOFA_HAVE_SOFA_GL
-#include <sofa/gl/VideoRecorderFFMPEG.h>
-#endif
+#include <SofaGLFW/render/RenderAPI.h>
 
 struct GLFWwindow;
 struct GLFWmonitor;
@@ -43,6 +39,12 @@ using namespace sofa::type;
 namespace sofa::helper::visual
 {
     class DrawTool;
+}
+
+namespace sofaglfw::render
+{
+    class IRenderBackend;
+    class IVideoRecorder;
 }
 
 namespace sofaglfw
@@ -140,28 +142,17 @@ public:
 
     static void triggerSceneAxis(sofa::simulation::NodeSPtr groot);
 
-    bool initEngine(uint32_t width, uint32_t height, GLFWwindow* glfwWindow);
-
-    //bgfx::RendererType::Enum m_type = bgfx::RendererType::OpenGL; // obviously to change
-#if WIN32
-    bgfx_renderer_type m_type = bgfx_renderer_type::BGFX_RENDERER_TYPE_DIRECT3D11;
-    uint16_t m_pciId = BGFX_PCI_ID_MICROSOFT;
-#elif __APPLE__
-    bgfx_renderer_type m_type = bgfx_renderer_type::BGFX_RENDERER_TYPE_METAL;
-    uint16_t m_pciId = BGFX_PCI_ID_APPLE;
-#endif
-    
-    uint32_t m_debug = BGFX_DEBUG_NONE;
-    uint32_t m_reset = BGFX_RESET_VSYNC | BGFX_RESET_HIDPI;
+    /// Access to the resolved rendering backend (may be null before init()).
+    render::IRenderBackend* getRenderBackend() const { return m_backend.get(); }
+    render::RenderAPI getRenderAPI() const { return m_renderAPI; }
 
     void setVsync(bool enabled);
-    bool isVsync() const { return (m_reset & BGFX_RESET_VSYNC) != 0; }
+    bool isVsync() const;
 
     void setMsaa(int level);
     int getMsaa() const;
 
 private:
-    void applyReset();
     // GLFW callbacks
     static void error_callback(int error, const char* description);
     static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -207,11 +198,12 @@ private:
     std::size_t m_backgroundID{0};
 
     std::shared_ptr<BaseGUIEngine> m_guiEngine;
-    
+
+    render::RenderAPI m_renderAPI{ render::RenderAPI::Auto };
+    std::unique_ptr<render::IRenderBackend> m_backend;
+
     bool m_bVideoRecording {false};
-#ifdef SOFA_HAVE_SOFA_GL
-    sofa::gl::VideoRecorderFFMPEG m_videoRecorderFFMPEG;
-#endif
+    std::unique_ptr<render::IVideoRecorder> m_videoRecorder;
 };
 
 } // namespace sofaglfw

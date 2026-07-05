@@ -59,12 +59,10 @@
 #include <SofaImGui/UIStrings.h>
 #include <Style.h>
 #include <backends/imgui_impl_glfw.h>
-#if SOFAIMGUI_USE_BGFX == 1
-#include "imgui_impl_bgfx.h"
-#else
-#include <backends/imgui_impl_opengl2.h>
-#include <backends/imgui_impl_opengl3.h>
-#endif
+#include <SofaImGui/render/IImGuiPlatform.h>
+#include <SofaImGui/render/ImGuiPlatformFactory.h>
+#include <SofaGLFW/render/RenderBackendFactory.h>
+#include <SofaGLFW/render/IRenderBackend.h>
 #include <fa-regular-400.h>
 #include <fa-solid-900.h>
 #include <filesystem>
@@ -134,9 +132,19 @@ void ImGuiGUIEngine::init()
     io.IniFilename = imguiIniFile.c_str();
 
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-#if SOFAIMGUI_USE_BGFX != 1
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-#endif
+
+    // Resolve which ImGui platform backend to use, matching the render backend.
+    m_renderAPI = sofaglfw::render::RenderBackendFactory::getInstance().resolve(sofaglfw::render::RenderAPI::Auto);
+    m_platform = render::ImGuiPlatformFactory::getInstance().create(m_renderAPI);
+    if (!m_platform)
+    {
+        msg_error("ImGuiGUIEngine") << "No ImGui platform available for the "
+            << sofaglfw::render::toString(m_renderAPI) << " backend.";
+    }
+
+    // Multi-viewport is only supported by backends that advertise it (OpenGL).
+    if (m_platform && m_platform->supportsMultiViewport())
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
     settings = std::make_unique<Settings>();
     settings->ini.SetUnicode();
@@ -174,11 +182,9 @@ void ImGuiGUIEngine::init()
 void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
 {
     // Setup Platform/Renderer backends
-#if SOFAIMGUI_USE_BGFX == 1
-    ImGui_ImplGlfw_InitForOther(glfwWindow, true);
-    ImGui_Implbgfx_Init(255);
-    bgfx_set_view_clear(255, BGFX_CLEAR_NONE, 0, 1.0f, 0);
-    bgfx_set_view_mode(255, BGFX_VIEW_MODE_SEQUENTIAL);
+    if (m_platform)
+        m_platform->initBackend(glfwWindow);
+
     {
         int w, h;
         glfwGetFramebufferSize(glfwWindow, &w, &h);
@@ -189,14 +195,6 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
         m_viewportRect = {0, 0, w, h};
         m_viewportWindowSize = {static_cast<float>(logW), static_cast<float>(logH)};
     }
-#else
-    ImGui_ImplGlfw_InitForOpenGL(glfwWindow, true);
-#if SOFAIMGUI_FORCE_OPENGL2 == 1
-    ImGui_ImplOpenGL2_Init();
-#else
-    ImGui_ImplOpenGL3_Init(nullptr);
-#endif // SOFAIMGUI_FORCE_OPENGL2 == 1
-#endif // SOFAIMGUI_USE_BGFX == 1
 
     float yscale { 1.f };
     if (GLFWmonitor* windowMonitor = findMyMonitor(glfwWindow))
@@ -229,7 +227,6 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
         }
     }
 
-#if SOFAIMGUI_USE_BGFX == 1
     if (auto* baseGUI = static_cast<sofaglfw::SofaGLFWBaseGUI*>(glfwGetWindowUserPointer(glfwWindow)))
     {
         const bool vsync = settings->ini.GetBoolValue("Rendering", "vsync", true);
@@ -237,9 +234,6 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
         baseGUI->setMsaa(msaa);
         baseGUI->setVsync(vsync);
     }
-#else
-    glGenBuffers(s_NB_PBOS, m_pbos);
-#endif
 }
 
 void ImGuiGUIEngine::loadFile(sofaglfw::SofaGLFWBaseGUI* baseGUI, sofa::core::sptr<sofa::simulation::Node>& groot, const std::string filePathName, bool reload)
@@ -348,24 +342,10 @@ void ImGuiGUIEngine::openFile(sofaglfw::SofaGLFWBaseGUI* baseGUI, sofa::core::sp
 
 void ImGuiGUIEngine::saveNamedScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI, std::string filename, int compression_level)
 {
-    
-#if SOFAIMGUI_USE_BGFX == 0
-    helper::io::STBImage image;
-    image.init(m_currentFBOSize.first, m_currentFBOSize.second, 1, 1, sofa::helper::io::Image::DataType::UINT32, sofa::helper::io::Image::ChannelFormat::RGBA);
-
-    glBindTexture(GL_TEXTURE_2D, m_fbo->getColorTexture());
-
-    // Read the pixel data from the OpenGL texture
-    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.getPixels());
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    if(compression_level < 0)
-        compression_level = 90;
-
-    image.save(filename, compression_level);
-#endif
-
+    SOFA_UNUSED(baseGUI);
+    SOFA_UNUSED(compression_level);
+    if (m_platform)
+        m_platform->requestScreenshot(filename);
 }
 
 void ImGuiGUIEngine::saveScreenshot(sofaglfw::SofaGLFWBaseGUI* baseGUI)
@@ -402,13 +382,8 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     auto groot = baseGUI->getRootNode();
 
     // Start the Dear ImGui frame
-#if SOFAIMGUI_USE_BGFX == 1
-    ImGui_Implbgfx_NewFrame();
-#elif SOFAIMGUI_FORCE_OPENGL2 == 1
-    ImGui_ImplOpenGL2_NewFrame();
-#else
-    ImGui_ImplOpenGL3_NewFrame();
-#endif
+    if (m_platform)
+        m_platform->newFrame();
 
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -431,13 +406,9 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     ImGui::PopStyleVar(2);
 
     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
-#if SOFAIMGUI_USE_BGFX == 1
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
-#else
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_NoDockingInCentralNode);
-#endif
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f),
+                     m_platform ? m_platform->dockspaceFlags() : ImGuiDockNodeFlags_None);
 
-#if SOFAIMGUI_USE_BGFX == 1
     {
         float xscale = 1.0f, yscale = 1.0f;
         GLFWwindow* glfwWin = static_cast<GLFWwindow*>(ImGui::GetMainViewport()->PlatformHandle);
@@ -455,7 +426,6 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
             static_cast<int>(m_viewportWindowSize.second)
         };
     }
-#endif
 
     static constexpr auto windowNameViewport = ICON_FA_DICE_D6 "  Viewport";
     static constexpr auto windowNamePerformances = ICON_FA_CHART_LINE "  Performances";
@@ -737,44 +707,9 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Viewport window
      **************************************/
-#if SOFAIMGUI_USE_BGFX == 1
-    {
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-        if (ImGui::Begin(windowNameViewport, winManagerViewPort.getStatePtr()))
-        {
-            ImVec2 wsize = ImGui::GetContentRegionAvail();
-            m_viewportWindowSize = {wsize.x, wsize.y};
-
-            ImVec2 viewportPos = ImGui::GetCursorScreenPos();
-            if (isViewportDisplayedForTheFirstTime)
-            {
-                lastViewPortPos.x() = viewportPos.x;
-                lastViewPortPos.y() = viewportPos.y;
-                isViewportDisplayedForTheFirstTime = false;
-                baseGUI->updateViewportPosition(viewportPos.x, viewportPos.y);
-            }
-            else if (windows::hasViewportMoved(viewportPos.x, viewportPos.y, lastViewPortPos.x(), lastViewPortPos.y(), windows::precisionThreshold))
-            {
-                baseGUI->updateViewportPosition(viewportPos.x, viewportPos.y);
-                lastViewPortPos.x() = viewportPos.x;
-                lastViewPortPos.y() = viewportPos.y;
-            }
-
-            if (m_sceneFBTexture.idx != UINT16_MAX)
-            {
-                ImGui::Image(static_cast<ImTextureID>(m_sceneFBTexture.idx), wsize);
-                isMouseOnViewport = ImGui::IsItemHovered();
-            }
-        }
-        ImGui::End();
-        ImGui::PopStyleVar();
-    }
-    windows::showViewPortOverlay(groot, settings->ini, baseGUI, m_viewportScreenRect);
-#else
-    windows::showViewPort(groot, windowNameViewport, settings->ini, m_fbo, m_viewportWindowSize,
+    windows::showViewPort(groot, windowNameViewport, settings->ini, m_platform.get(), m_viewportWindowSize,
                           isMouseOnViewport, winManagerViewPort, baseGUI,
                           isViewportDisplayedForTheFirstTime, lastViewPortPos);
-#endif
 
 
     /***************************************
@@ -849,68 +784,24 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     windows::showSettings(windowNameSettings, settings->ini, winManagerSettings, this, baseGUI);
     
     ImGui::Render();
-#if SOFAIMGUI_USE_BGFX == 1
-    {
-        ImDrawData* dd = ImGui::GetDrawData();
-        const uint16_t w = static_cast<uint16_t>(dd->DisplaySize.x * dd->FramebufferScale.x);
-        const uint16_t h = static_cast<uint16_t>(dd->DisplaySize.y * dd->FramebufferScale.y);
 
-        // Clear backbuffer before ImGui (scene is in offscreen FB now)
-        bgfx_set_view_rect(254, 0, 0, w, h);
-        bgfx_set_view_clear(254, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
-        bgfx_touch(254);
+    if (m_platform)
+        m_platform->renderDrawData(ImGui::GetDrawData());
 
-        bgfx_set_view_rect(255, 0, 0, w, h);
-        bgfx_touch(255);
-        ImGui_Implbgfx_RenderDrawLists(dd);
-    }
-
-    if (!m_pendingScreenshotPath.empty() && m_sceneFBTexture.idx != UINT16_MAX && !m_readbackPending)
-    {
-        if (m_readbackTexture.idx == UINT16_MAX
-            || m_readbackWidth != m_sceneFBWidth
-            || m_readbackHeight != m_sceneFBHeight)
-        {
-            if (m_readbackTexture.idx != UINT16_MAX)
-                bgfx_destroy_texture(m_readbackTexture);
-
-            m_readbackTexture = bgfx_create_texture_2d(
-                m_sceneFBWidth, m_sceneFBHeight, false, 1,
-                BGFX_TEXTURE_FORMAT_RGBA8,
-                BGFX_TEXTURE_BLIT_DST | BGFX_TEXTURE_READ_BACK, NULL, 0);
-            m_readbackWidth = m_sceneFBWidth;
-            m_readbackHeight = m_sceneFBHeight;
-        }
-
-        bgfx_blit(253, m_readbackTexture, 0, 0, 0, 0,
-            m_sceneFBTexture, 0, 0, 0, 0,
-            m_sceneFBWidth, m_sceneFBHeight, 0);
-
-        m_readbackData.resize(m_readbackWidth * m_readbackHeight * 4);
-        m_readbackFrame = bgfx_read_texture(m_readbackTexture, m_readbackData.data(), 0, 0);
-        m_readbackPending = true;
-    }
-
-    uint32_t currentFrame = bgfx_frame(false);
-
-    if (m_readbackPending && currentFrame >= m_readbackFrame)
-    {
-        processScreenshotReadback();
-    }
-#elif SOFAIMGUI_FORCE_OPENGL2 == 1
-    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
-#else
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-#endif
-
-    // Update and Render additional Platform Windows
-#if SOFAIMGUI_USE_BGFX != 1
+    // Update and Render additional Platform Windows (multi-viewport)
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
     }
-#endif
+
+    // Present the frame through the render backend, then let the platform
+    // advance any pending asynchronous screenshot read-back.
+    if (auto* backend = baseGUI->getRenderBackend())
+        m_lastPresentedFrame = backend->present(
+            static_cast<GLFWwindow*>(ImGui::GetMainViewport()->PlatformHandle));
+    if (m_platform)
+        m_platform->pumpScreenshot(m_lastPresentedFrame);
 
     m_frameCount++;
 
@@ -1033,127 +924,32 @@ void ImGuiGUIEngine::loadFont(float yscale)
 
     io.Fonts->Build();
 
-#if SOFAIMGUI_USE_BGFX == 1
-    ImGui_Implbgfx_DestroyFontsTexture();
-    ImGui_Implbgfx_CreateFontsTexture();
-#elif SOFAIMGUI_FORCE_OPENGL2 == 1
-    ImGui_ImplOpenGL2_DestroyFontsTexture();
-    ImGui_ImplOpenGL2_CreateFontsTexture();
-#else
-    ImGui_ImplOpenGL3_DestroyFontsTexture();
-    ImGui_ImplOpenGL3_CreateFontsTexture();
-#endif
-}
-
-void ImGuiGUIEngine::recreateSceneFB(uint16_t width, uint16_t height)
-{
-    if (m_sceneFB.idx != UINT16_MAX)
-    {
-        bgfx_destroy_frame_buffer(m_sceneFB);
-        m_sceneFB.idx = UINT16_MAX;
-        m_sceneFBTexture.idx = UINT16_MAX;
-    }
-
-    if (width == 0 || height == 0)
-        return;
-
-    bgfx_texture_handle_t textures[2];
-    textures[0] = bgfx_create_texture_2d(width, height, false, 1,
-        BGFX_TEXTURE_FORMAT_RGBA8, BGFX_TEXTURE_RT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP, NULL, 0);
-    textures[1] = bgfx_create_texture_2d(width, height, false, 1,
-        BGFX_TEXTURE_FORMAT_D24S8, BGFX_TEXTURE_RT_WRITE_ONLY, NULL, 0);
-
-    m_sceneFB = bgfx_create_frame_buffer_from_handles(2, textures, true);
-    m_sceneFBTexture = textures[0];
-    m_sceneFBWidth = width;
-    m_sceneFBHeight = height;
-}
-
-void ImGuiGUIEngine::processScreenshotReadback()
-{
-    m_readbackPending = false;
-
-    sofa::helper::io::STBImage image;
-    image.init(m_readbackWidth, m_readbackHeight, 1, 1,
-        sofa::helper::io::Image::DataType::UINT32,
-        sofa::helper::io::Image::ChannelFormat::RGBA);
-
-    const uint8_t* src = m_readbackData.data();
-    uint8_t* dst = image.getPixels();
-    const uint32_t pitch = m_readbackWidth * 4;
-
-    for (uint32_t row = 0; row < m_readbackHeight; ++row)
-    {
-        uint32_t srcRow = m_readbackHeight - 1 - row;
-        memcpy(dst + row * pitch, src + srcRow * pitch, pitch);
-    }
-
-    image.save(m_pendingScreenshotPath.c_str(), 90);
-    m_pendingScreenshotPath.clear();
-    m_readbackData.clear();
+    if (m_platform)
+        m_platform->recreateFontsTexture();
 }
 
 void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
 {
-#if SOFAIMGUI_USE_BGFX == 1
     SOFA_UNUSED(glfwWindow);
 
-    const uint16_t desiredW = static_cast<uint16_t>(std::max(1, m_viewportRect[2]));
-    const uint16_t desiredH = static_cast<uint16_t>(std::max(1, m_viewportRect[3]));
+    // Bind the offscreen scene target (sized in logical pixels; the backend
+    // applies content scaling internally where needed).
+    const int logicalW = std::max(1, static_cast<int>(m_viewportWindowSize.first));
+    const int logicalH = std::max(1, static_cast<int>(m_viewportWindowSize.second));
 
-    if (desiredW != m_sceneFBWidth || desiredH != m_sceneFBHeight)
-        recreateSceneFB(desiredW, desiredH);
+    if (m_platform)
+        m_platform->beginSceneTarget(logicalW, logicalH);
 
-    if (m_sceneFB.idx != UINT16_MAX)
-    {
-        bgfx_set_view_frame_buffer(0, m_sceneFB);
-        bgfx_set_view_frame_buffer(1, m_sceneFB);
-    }
-
-    // Store logical pixels in viewport; draw() will apply content scale
+    // The scene is rendered using logical-pixel viewport; the scene renderer
+    // applies content scale to reach framebuffer pixels where relevant.
     sofa::core::visual::VisualParams::defaultInstance()->viewport() = {
-        0, 0,
-        static_cast<int>(m_viewportWindowSize.first),
-        static_cast<int>(m_viewportWindowSize.second)};
-#else
-    glClearColor(0,0,0,1);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    if (!m_fbo)
-    {
-        m_fbo = std::make_unique<sofa::gl::FrameBufferObject>();
-        m_currentFBOSize = {500, 500};
-        m_fbo->init(m_currentFBOSize.first, m_currentFBOSize.second);
-    }
-    else
-    {
-        if (m_currentFBOSize.first != static_cast<unsigned int>(m_viewportWindowSize.first)
-            || m_currentFBOSize.second != static_cast<unsigned int>(m_viewportWindowSize.second))
-        {
-            m_fbo->setSize(static_cast<unsigned int>(m_viewportWindowSize.first), static_cast<unsigned int>(m_viewportWindowSize.second));
-            m_currentFBOSize = {static_cast<unsigned int>(m_viewportWindowSize.first), static_cast<unsigned int>(m_viewportWindowSize.second)};
-        }
-    }
-    sofa::core::visual::VisualParams::defaultInstance()->viewport() = {0, 0,
-        static_cast<int>(m_currentFBOSize.first),
-        static_cast<int>(m_currentFBOSize.second)};
-
-    m_fbo->start();
-#endif
+        0, 0, logicalW, logicalH};
 }
 
 void ImGuiGUIEngine::afterDraw()
 {
-#if SOFAIMGUI_USE_BGFX != 1
-    // Clear the alpha-component of the image so it is not interpreted
-    // by imgui as a content with transparency.
-    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
-    m_fbo->stop();
-#endif
+    if (m_platform)
+        m_platform->endSceneTarget();
 }
 
 void ImGuiGUIEngine::terminate()
@@ -1178,27 +974,8 @@ void ImGuiGUIEngine::terminate()
 
         NFD_Quit();
 
-#if SOFAIMGUI_USE_BGFX == 1
-        if (m_sceneFB.idx != UINT16_MAX)
-        {
-            bgfx_destroy_frame_buffer(m_sceneFB);
-            m_sceneFB.idx = UINT16_MAX;
-            m_sceneFBTexture.idx = UINT16_MAX;
-        }
-        if (m_readbackTexture.idx != UINT16_MAX)
-        {
-            bgfx_destroy_texture(m_readbackTexture);
-            m_readbackTexture.idx = UINT16_MAX;
-        }
-        ImGui_Implbgfx_Shutdown();
-#else
-        glDeleteBuffers(s_NB_PBOS, m_pbos);
-#if SOFAIMGUI_FORCE_OPENGL2 == 1
-        ImGui_ImplOpenGL2_Shutdown();
-#else
-        ImGui_ImplOpenGL3_Shutdown();
-#endif // SOFAIMGUI_FORCE_OPENGL2 == 1
-#endif // SOFAIMGUI_USE_BGFX == 1
+        if (m_platform)
+            m_platform->shutdown();
 
         ImGui_ImplGlfw_Shutdown();
         ImPlot::DestroyContext();
@@ -1228,56 +1005,11 @@ void ImGuiGUIEngine::setScale(float globalScale)
 
 type::Vec2i ImGuiGUIEngine::getFrameBufferPixels(std::vector<uint8_t>& pixels)
 {
-#if SOFAIMGUI_USE_BGFX == 1
-    SOFA_UNUSED(pixels);
-    // bgfx does not support synchronous framebuffer readback via PBO
+    // Synchronous read-back of the scene target (used by video recording).
+    // Backends without synchronous read-back (bgfx) return {0,0}.
+    if (m_platform)
+        return m_platform->readSceneTargetPixels(pixels);
     return {0, 0};
-#else
-    int readIndex = m_frameCount % s_NB_PBOS;
-    int processIndex = (m_frameCount + 1) % s_NB_PBOS;
-
-    m_fbo->start();
-
-    GLint viewport[4];
-    glGetIntegerv(GL_VIEWPORT, viewport);
-
-    if(m_pboSize[0] != viewport[2] || m_pboSize[1] != viewport[3])
-    {
-        // Size for your frame (e.g., 1920x1080 RGBA)
-        int size = viewport[2] * viewport[3] * 4;
-
-        for (int i = 0; i < s_NB_PBOS; i++) {
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, m_pbos[i]);
-            glBufferData(GL_PIXEL_PACK_BUFFER, size, NULL, GL_STREAM_READ);
-        }
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-
-        m_pboSize[0] = viewport[2];
-        m_pboSize[1] = viewport[3];
-    }
-
-    glPixelStorei(GL_PACK_ALIGNMENT, 1);
-
-    // Read to PBO (asynchronous)
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, m_pbos[readIndex]);
-    glReadPixels(0, 0, viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, 0);
-
-    // Map and process previous frame
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, m_pbos[processIndex]);
-    void* data = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
-    if (data)
-    {
-        int size = viewport[2] * viewport[3] * 4;
-        pixels.resize(size);
-        memcpy(pixels.data(), data, size);
-        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
-    }
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-
-    m_fbo->stop();
-
-    return {viewport[2], viewport[3]};
-#endif
 }
 
 } //namespace sofaimgui

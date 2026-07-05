@@ -19,22 +19,46 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#pragma once
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+#include <SofaGLFW/render/IRenderBackend.h>
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+namespace sofaglfw::render
+{
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
+/// Legacy OpenGL implementation of IRenderBackend. This is the only place,
+/// together with the other files under render/gl/, where OpenGL/GLEW headers
+/// are included on the SofaGLFW side.
+class RenderBackendGL : public IRenderBackend
+{
+public:
+    RenderBackendGL() = default;
+    ~RenderBackendGL() override = default;
 
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
+    bool initEngine(GLFWwindow* window, uint32_t width, uint32_t height) override;
+    void resize(uint32_t width, uint32_t height) override;
+    uint32_t present(GLFWwindow* window) override;
+    void terminate() override;
+    bool requestBackbufferScreenshot(GLFWwindow* window, const std::string& path) override;
 
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+    std::unique_ptr<sofa::helper::visual::DrawTool> makeDrawTool() override;
+    void configureVisualParams() override;
+    void registerVisualModelAliases() override;
+
+    bool supportsMultiViewport() const override { return true; }
+    bool needsGlfwContext() const override { return true; }
+
+    void setVsync(bool enabled) override;
+    bool isVsync() const override { return m_vsync; }
+    void setMsaa(int level) override;
+    int  getMsaa() const override { return m_msaa; }
+
+private:
+    GLFWwindow* m_window{nullptr};
+    bool m_glewInitialized{false};
+    bool m_vsync{false};
+    int m_msaa{0};
+    uint32_t m_frameCounter{0};
+};
+
+} // namespace sofaglfw::render

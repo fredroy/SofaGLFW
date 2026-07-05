@@ -19,22 +19,50 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#pragma once
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+#include <SofaGLFW/render/ISceneRenderer.h>
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+#include <sofa/helper/io/Image.h>
+#include <sofa/gl/Texture.h>
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
+#include <map>
+#include <string>
 
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
+namespace sofaglfw::render
+{
 
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+/// Legacy OpenGL implementation of ISceneRenderer: immediate-mode fixed-function
+/// scene draw with camera matrices loaded via glMultMatrix, and a tiled textured
+/// background quad (ported from master's SofaGLFWWindow).
+class SceneRendererGL : public ISceneRenderer
+{
+public:
+    SceneRendererGL() = default;
+    ~SceneRendererGL() override;
+
+    void drawScene(sofa::simulation::Node* groot,
+                   sofa::core::visual::VisualParams* vparams,
+                   sofa::component::visual::BaseCamera* camera,
+                   GLFWwindow* glfwWindow,
+                   const ViewportRect& viewport,
+                   const sofa::type::RGBAColor& background) override;
+
+    void setBackgroundImage(const std::string& filename) override;
+    void clearBackgroundImage() override;
+    void releaseResources() override;
+
+private:
+    void drawBackgroundImage(sofa::component::visual::BaseCamera* camera);
+
+    struct Background
+    {
+        sofa::helper::io::Image* image{nullptr};
+        sofa::gl::Texture* texture{nullptr};
+    };
+
+    std::map<std::string, Background> m_backgrounds;
+    std::string m_currentBackgroundFilename{};
+};
+
+} // namespace sofaglfw::render

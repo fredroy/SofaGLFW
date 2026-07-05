@@ -19,22 +19,50 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <sofa/config.h>
+#pragma once
 
-#define SOFAGLFW_VERSION @PROJECT_VERSION@
+#include <SofaImGui/config.h>
+#include <SofaGLFW/render/RenderAPI.h>
 
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GUI_COMMON
-#cmakedefine01 SOFAGLFW_HAVE_FFMPEG
+#include <functional>
+#include <memory>
 
-#cmakedefine SOFAGLFW_USEX11_INTERNAL
+namespace sofaimgui::render
+{
 
-#define SOFAGLFW_HAS_IMGUI @SOFAGLFW_HAS_IMGUI_VALUE@
-#cmakedefine01 SOFAGLFW_HAVE_BGFXPLUGIN
-#cmakedefine01 SOFAGLFW_HAVE_SOFA_GL
+class IImGuiPlatform;
 
-#ifdef SOFA_BUILD_SOFAGLFW
-#  define SOFA_TARGET @PROJECT_NAME@
-#  define SOFAGLFW_API SOFA_EXPORT_DYNAMIC_LIBRARY
-#else
-#  define SOFAGLFW_API SOFA_IMPORT_DYNAMIC_LIBRARY
-#endif
+/// Runtime registry + factory for ImGui platform backends, mirroring
+/// sofaglfw::render::RenderBackendFactory. Each ImGui platform TU self-registers
+/// at static-init time; this file has no backend includes and no #ifdef.
+class SOFAIMGUI_API ImGuiPlatformFactory
+{
+public:
+    using Creator = std::function<std::unique_ptr<IImGuiPlatform>()>;
+    using RenderAPI = sofaglfw::render::RenderAPI;
+
+    static ImGuiPlatformFactory& getInstance();
+
+    void registerPlatform(RenderAPI api, Creator creator);
+    bool isAvailable(RenderAPI api) const;
+
+    /// Create the ImGui platform for the given (already-resolved) backend.
+    /// Pass the concrete RenderAPI chosen by RenderBackendFactory so the ImGui
+    /// backend matches the render backend. @return nullptr if unavailable.
+    std::unique_ptr<IImGuiPlatform> create(RenderAPI api) const;
+
+private:
+    ImGuiPlatformFactory() = default;
+
+    Creator m_opengl;
+    Creator m_bgfx;
+};
+
+/// Static-init helper; instantiate one at file scope in each ImGui platform TU.
+struct SOFAIMGUI_API ImGuiPlatformRegistrar
+{
+    ImGuiPlatformRegistrar(sofaglfw::render::RenderAPI api,
+                           ImGuiPlatformFactory::Creator creator);
+};
+
+} // namespace sofaimgui::render
