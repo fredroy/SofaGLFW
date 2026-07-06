@@ -43,7 +43,8 @@ public:
 
     void addFrame(const uint8_t* pixels, int width, int height) override
     {
-        m_recorder.addFrame(pixels, width, height);
+        // VideoRecorderFFMPEG::addFrame takes a non-const buffer.
+        m_recorder.addFrame(const_cast<unsigned char*>(pixels), width, height);
     }
 
     void finish() override

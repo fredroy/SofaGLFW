@@ -791,8 +791,13 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     // Update and Render additional Platform Windows (multi-viewport)
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
+        // RenderPlatformWindowsDefault() leaves a child window's context current.
+        // Backup and restore the main context around it, otherwise the main
+        // window's subsequent present targets the wrong context (flicker).
+        GLFWwindow* backupContext = glfwGetCurrentContext();
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
+        glfwMakeContextCurrent(backupContext);
     }
 
     // Present the frame through the render backend, then let the platform
