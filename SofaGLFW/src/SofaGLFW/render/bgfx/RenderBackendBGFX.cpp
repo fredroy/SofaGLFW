@@ -102,7 +102,13 @@ void RenderBackendBGFX::terminate()
 {
     if (!m_initialized)
         return;
-    bgfx_shutdown();
+
+    // NOTE: we intentionally do NOT call bgfx_shutdown() here. The SOFA scene
+    // graph (groot) still owns BGFXModel components whose destructors call
+    // bgfx_destroy_*; those objects are destroyed AFTER this GUI teardown, so
+    // shutting bgfx down now would make them operate on a dead context and
+    // crash on quit. bgfx resources are reclaimed at process exit (this matches
+    // the behavior before the backend abstraction was introduced).
     m_initialized = false;
 }
 
