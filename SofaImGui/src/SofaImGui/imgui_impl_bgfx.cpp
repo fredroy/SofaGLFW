@@ -7,20 +7,12 @@
 #include "imgui_impl_bgfx.h"
 
 #include <bgfx/bgfx.h>
-#include <bgfx/embedded_shader.h>
 #include <bx/math.h>
 
+#include <BGFXPlugin/BGFXShaderUtils.h>
+
 #include <cstring>
-
-#include "vs_ocornut_imgui.bin.h"
-#include "fs_ocornut_imgui.bin.h"
-
-static const bgfx::EmbeddedShader s_embeddedShaders[] =
-{
-    BGFX_EMBEDDED_SHADER(vs_ocornut_imgui),
-    BGFX_EMBEDDED_SHADER(fs_ocornut_imgui),
-    BGFX_EMBEDDED_SHADER_END()
-};
+#include <string>
 
 static bgfx::TextureHandle g_FontTexture = BGFX_INVALID_HANDLE;
 static bgfx::ProgramHandle g_ShaderHandle = BGFX_INVALID_HANDLE;
@@ -151,12 +143,12 @@ void ImGui_Implbgfx_DestroyFontsTexture()
 
 bool ImGui_Implbgfx_CreateDeviceObjects()
 {
-    const bgfx::RendererType::Enum type = bgfx::getRendererType();
-
-    g_ShaderHandle = bgfx::createProgram(
-        bgfx::createEmbeddedShader(s_embeddedShaders, type, "vs_ocornut_imgui"),
-        bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_ocornut_imgui"),
-        true);
+    // The ImGui shaders are compiled by the build with the pinned bgfx's shaderc (see
+    // SofaImGui/CMakeLists.txt) and loaded like the other SofaImGui shaders. Precompiled
+    // embedded copies would be rejected as soon as bgfx changes its shader binary format.
+    const bgfx_program_handle_t program = bgfxplugin::loadProgram(
+        "vs_ocornut_imgui", "fs_ocornut_imgui", std::string(SOFAIMGUI_RESOURCES_DIR) + "/shaders");
+    g_ShaderHandle.idx = program.idx;
 
     g_VertexLayout
         .begin()

@@ -77,11 +77,11 @@ void ImGuiPlatformBGFX::renderDrawData(ImDrawData* drawData)
     const uint16_t h = static_cast<uint16_t>(drawData->DisplaySize.y * drawData->FramebufferScale.y);
 
     // Clear backbuffer before ImGui (scene lives in the offscreen FB)
-    bgfx_set_view_rect(kViewImGuiClear, 0, 0, w, h);
+    bgfx_set_view_rect(kViewImGuiClear, 0, 0, w, h, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewImGuiClear, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
     bgfx_touch(kViewImGuiClear);
 
-    bgfx_set_view_rect(kViewImGui, 0, 0, w, h);
+    bgfx_set_view_rect(kViewImGui, 0, 0, w, h, 0.0f, 1.0f);
     bgfx_touch(kViewImGui);
     ImGui_Implbgfx_RenderDrawLists(drawData);
 }
@@ -194,12 +194,19 @@ void ImGuiPlatformBGFX::pumpScreenshot(uint32_t presentedFrame)
             m_readbackHeight = m_sceneFBHeight;
         }
 
-        bgfx_blit(kViewScreenshotBlit, m_readbackTexture, 0, 0, 0, 0,
-            m_sceneFBTexture, 0, 0, 0, 0,
-            m_sceneFBWidth, m_sceneFBHeight, 0);
+        // bgfx API >= 157: blit/readback work on texture regions (0 extents = whole mip).
+        bgfx_texture_region_t dst{};
+        dst.handle = m_readbackTexture;
+        dst.width = m_sceneFBWidth;
+        dst.height = m_sceneFBHeight;
+        bgfx_texture_region_t src{};
+        src.handle = m_sceneFBTexture;
+        src.width = m_sceneFBWidth;
+        src.height = m_sceneFBHeight;
+        bgfx_blit(kViewScreenshotBlit, &dst, &src);
 
         m_readbackData.resize(static_cast<size_t>(m_readbackWidth) * m_readbackHeight * 4);
-        m_readbackFrame = bgfx_read_texture(m_readbackTexture, m_readbackData.data(), 0, 0);
+        m_readbackFrame = bgfx_read_texture(&dst, m_readbackData.data());
         m_readbackPending = true;
     }
 
