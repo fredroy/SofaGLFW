@@ -142,9 +142,11 @@ void ImGuiPlatformBGFX::beginSceneTarget(int width, int height)
 
     if (m_sceneFB.idx != UINT16_MAX)
     {
-        // Scene views 0 (background) and 1 (scene) render into the offscreen FB.
+        // Scene views 0 (background), 1 (scene) and 2 (transparent models) render
+        // into the offscreen FB.
         bgfx_set_view_frame_buffer(0, m_sceneFB);
         bgfx_set_view_frame_buffer(1, m_sceneFB);
+        bgfx_set_view_frame_buffer(2, m_sceneFB);
     }
 }
 
