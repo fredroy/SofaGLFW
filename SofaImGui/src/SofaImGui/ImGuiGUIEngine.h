@@ -68,6 +68,7 @@ public:
     bool dispatchMouseEvents() override;
     void contentScaleChanged(float xscale, float yscale) override;
     void setSimulation(sofa::core::sptr<sofa::simulation::Node>& groot, const std::string& filename = std::string("")) override;
+    InitialRenderConfig getInitialRenderConfig() const override;
 
     // apply global scale on the given monitor (if null, it will fetch the main monitor)
     void setScale(float globalScale);
@@ -92,6 +93,7 @@ protected:
     sofaglfw::render::RenderAPI m_renderAPI{ sofaglfw::render::RenderAPI::Auto };
 
     std::pair<float, float> m_viewportWindowSize;
+    int m_sceneMsaa{0}; ///< MSAA samples of the offscreen scene target (backend setting)
     std::array<int, 4> m_viewportRect {}; // x, y, w, h in framebuffer pixels for bgfx rendering
     std::array<int, 4> m_viewportScreenRect {}; // x, y, w, h in screen pixels for overlay positioning
     bool isMouseOnViewport { false };

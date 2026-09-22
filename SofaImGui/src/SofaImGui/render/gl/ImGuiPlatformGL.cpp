@@ -36,7 +36,11 @@
 
 #include <sofa/helper/io/STBImage.h>
 
+#include <sofa/helper/logging/Messaging.h>
+
+#include <algorithm>
 #include <cstring>
+#include <ios>
 
 namespace sofaimgui::render
 {
@@ -119,6 +123,10 @@ void ImGuiPlatformGL::renderDrawData(ImDrawData* drawData)
 
 void ImGuiPlatformGL::shutdown()
 {
+    // Every GL object now, while the context is current: the platform itself may be
+    // destroyed after glfwTerminate (the GUI engine outlives a bounded run's loop).
+    releaseMsaaTarget();
+    m_fbo.reset();
     if (m_pbosInitialized)
     {
         glDeleteBuffers(s_NB_PBOS, m_pbos);
@@ -132,7 +140,72 @@ void ImGuiPlatformGL::recreateFontsTexture()
     implRecreateFonts();
 }
 
-void ImGuiPlatformGL::beginSceneTarget(int width, int height)
+void ImGuiPlatformGL::releaseMsaaTarget()
+{
+    if (m_msaaFbo)
+        glDeleteFramebuffersEXT(1, &m_msaaFbo);
+    if (m_msaaColor)
+        glDeleteRenderbuffersEXT(1, &m_msaaColor);
+    if (m_msaaDepth)
+        glDeleteRenderbuffersEXT(1, &m_msaaDepth);
+    m_msaaFbo = m_msaaColor = m_msaaDepth = 0;
+    m_msaaSamples = 0;
+    m_msaaSize = {0, 0};
+}
+
+bool ImGuiPlatformGL::ensureMsaaTarget(unsigned int width, unsigned int height, int samples)
+{
+    // GL_MAX_SAMPLES_EXT is queried once, and only with MSAA on: without
+    // EXT_framebuffer_multisample it is an invalid enum, and the GL error left pending
+    // would be reported by the next glGetError of a scene component.
+    if (samples >= 2 && m_maxSamples < 0)
+    {
+        GLint maxSamples = 0;
+        glGetIntegerv(GL_MAX_SAMPLES_EXT, &maxSamples);
+        if (glGetError() != GL_NO_ERROR)
+            maxSamples = 0;
+        m_maxSamples = maxSamples;
+    }
+    samples = std::min(samples, std::max(m_maxSamples, 0));
+    if (samples < 2 || m_msaaFailed)
+    {
+        releaseMsaaTarget();
+        return false;
+    }
+    if (m_msaaFbo && m_msaaSamples == samples && m_msaaSize == std::make_pair(width, height))
+        return true;
+
+    releaseMsaaTarget();
+    glGenRenderbuffersEXT(1, &m_msaaColor);
+    glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, m_msaaColor);
+    glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER_EXT, samples, GL_RGBA8, GLsizei(width), GLsizei(height));
+    glGenRenderbuffersEXT(1, &m_msaaDepth);
+    glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, m_msaaDepth);
+    glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER_EXT, samples, GL_DEPTH_COMPONENT24, GLsizei(width), GLsizei(height));
+    glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, 0);
+
+    GLint previous = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &previous);
+    glGenFramebuffersEXT(1, &m_msaaFbo);
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_msaaFbo);
+    glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_RENDERBUFFER_EXT, m_msaaColor);
+    glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, m_msaaDepth);
+    const GLenum status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, GLuint(previous));
+    if (status != GL_FRAMEBUFFER_COMPLETE_EXT)
+    {
+        msg_warning("ImGuiPlatformGL") << "Multisampled scene target incomplete (status 0x" << std::hex << status
+                                       << "): the scene is drawn without MSAA.";
+        releaseMsaaTarget();
+        m_msaaFailed = true;
+        return false;
+    }
+    m_msaaSamples = samples;
+    m_msaaSize = {width, height};
+    return true;
+}
+
+void ImGuiPlatformGL::beginSceneTarget(int width, int height, int msaa)
 {
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -153,6 +226,12 @@ void ImGuiPlatformGL::beginSceneTarget(int width, int height)
     }
 
     m_fbo->start();
+
+    // With MSAA (Settings > Rendering), the scene goes to a multisampled target of
+    // the same size, resolved into m_fbo by endSceneTarget().
+    m_msaaActive = ensureMsaaTarget(w, h, msaa);
+    if (m_msaaActive)
+        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_msaaFbo);
 }
 
 void ImGuiPlatformGL::endSceneTarget()
@@ -165,6 +244,16 @@ void ImGuiPlatformGL::endSceneTarget()
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+    if (m_msaaActive)
+    {
+        const GLint w = GLint(m_msaaSize.first), h = GLint(m_msaaSize.second);
+        glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, m_msaaFbo);
+        glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, m_fbo->getID());
+        glBlitFramebufferEXT(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_fbo->getID());
+        m_msaaActive = false;
+    }
 
     m_fbo->stop();
 }

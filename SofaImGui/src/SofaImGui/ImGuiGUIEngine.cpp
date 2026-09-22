@@ -232,13 +232,20 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
         }
     }
 
-    if (auto* baseGUI = static_cast<sofaglfw::SofaGLFWBaseGUI*>(glfwGetWindowUserPointer(glfwWindow)))
+    // NOTE: vsync/MSAA are applied by SofaGLFWBaseGUI::createWindow BEFORE the
+    // engine is initialized (see getInitialRenderConfig), so the backend starts
+    // in the correct state. We intentionally do not re-apply them here.
+}
+
+sofaglfw::BaseGUIEngine::InitialRenderConfig ImGuiGUIEngine::getInitialRenderConfig() const
+{
+    InitialRenderConfig cfg;
+    if (settings)
     {
-        const bool vsync = settings->ini.GetBoolValue("Rendering", "vsync", true);
-        const int msaa = static_cast<int>(settings->ini.GetLongValue("Rendering", "msaa", 0));
-        baseGUI->setMsaa(msaa);
-        baseGUI->setVsync(vsync);
+        cfg.vsync = settings->ini.GetBoolValue("Rendering", "vsync", false);
+        cfg.msaa = static_cast<int>(settings->ini.GetLongValue("Rendering", "msaa", 0));
     }
+    return cfg;
 }
 
 void ImGuiGUIEngine::clearComponentSelection(sofaglfw::SofaGLFWBaseGUI* baseGUI)
@@ -401,6 +408,7 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     std::setlocale(LC_NUMERIC, "C.UTF-8");
 
     auto groot = baseGUI->getRootNode();
+    m_sceneMsaa = baseGUI->getMsaa(); // the scene target follows the Settings' MSAA
 
     // Start the Dear ImGui frame
     if (m_platform)
@@ -1015,7 +1023,7 @@ void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
     const int logicalH = std::max(1, static_cast<int>(m_viewportWindowSize.second));
 
     if (m_platform)
-        m_platform->beginSceneTarget(logicalW, logicalH);
+        m_platform->beginSceneTarget(logicalW, logicalH, m_sceneMsaa);
 
     // The scene is rendered using logical-pixel viewport; the scene renderer
     // applies content scale to reach framebuffer pixels where relevant.
