@@ -24,6 +24,7 @@
 #include <SofaImGui/imgui_impl_bgfx.h>
 
 #include <backends/imgui_impl_glfw.h>
+#include <GLFW/glfw3.h>
 #include <bgfx/bgfx.h>
 
 #include <sofa/helper/io/STBImage.h>
@@ -60,6 +61,7 @@ ImGuiPlatformBGFX::~ImGuiPlatformBGFX()
 
 void ImGuiPlatformBGFX::initBackend(GLFWwindow* window)
 {
+    m_window = window;
     ImGui_ImplGlfw_InitForOther(window, true);
     ImGui_Implbgfx_Init(kViewImGui);
     bgfx_set_view_clear(kViewImGui, BGFX_CLEAR_NONE, 0, 1.0f, 0);
@@ -134,17 +136,25 @@ void ImGuiPlatformBGFX::recreateSceneFB(uint16_t width, uint16_t height)
 
 void ImGuiPlatformBGFX::beginSceneTarget(int width, int height)
 {
-    const uint16_t desiredW = static_cast<uint16_t>(std::max(1, width));
-    const uint16_t desiredH = static_cast<uint16_t>(std::max(1, height));
+    // width/height are logical pixels; SceneRendererBGFX sets the scene view rect in
+    // framebuffer pixels (times the window content scale), so the target must be
+    // that large too, or a HiDPI window only shows the top-left part of the scene.
+    float xscale = 1.0f, yscale = 1.0f;
+    if (m_window)
+        glfwGetWindowContentScale(m_window, &xscale, &yscale);
+    const uint16_t desiredW = static_cast<uint16_t>(std::max(1, static_cast<int>(std::max(1, width) * xscale)));
+    const uint16_t desiredH = static_cast<uint16_t>(std::max(1, static_cast<int>(std::max(1, height) * yscale)));
 
     if (desiredW != m_sceneFBWidth || desiredH != m_sceneFBHeight)
         recreateSceneFB(desiredW, desiredH);
 
     if (m_sceneFB.idx != UINT16_MAX)
     {
-        // Scene views 0 (background) and 1 (scene) render into the offscreen FB.
+        // Scene views 0 (background), 1 (scene) and 2 (transparent models) render
+        // into the offscreen FB.
         bgfx_set_view_frame_buffer(0, m_sceneFB);
         bgfx_set_view_frame_buffer(1, m_sceneFB);
+        bgfx_set_view_frame_buffer(2, m_sceneFB);
     }
 }
 
@@ -214,6 +224,11 @@ void ImGuiPlatformBGFX::pumpScreenshot(uint32_t presentedFrame)
         processScreenshotReadback();
 }
 
+bool ImGuiPlatformBGFX::sceneTextureFlippedV() const
+{
+    return bgfxplugin::context::isAlive() && bgfx_get_caps()->originBottomLeft;
+}
+
 void ImGuiPlatformBGFX::processScreenshotReadback()
 {
     m_readbackPending = false;
@@ -227,9 +242,12 @@ void ImGuiPlatformBGFX::processScreenshotReadback()
     uint8_t* dst = image.getPixels();
     const uint32_t pitch = m_readbackWidth * 4;
 
+    // STBImage::save writes the rows bottom-up: give it bottom-up rows. The texture
+    // is top-down, except on renderers whose targets start at the bottom left.
+    const bool bottomUp = sceneTextureFlippedV();
     for (uint32_t row = 0; row < m_readbackHeight; ++row)
     {
-        uint32_t srcRow = m_readbackHeight - 1 - row;
+        const uint32_t srcRow = bottomUp ? row : m_readbackHeight - 1 - row;
         memcpy(dst + row * pitch, src + srcRow * pitch, pitch);
     }
 

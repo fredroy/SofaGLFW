@@ -60,6 +60,8 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
 {
     constexpr uint16_t kViewBackground = 0;
     constexpr uint16_t kViewScene = 1;
+    // Transparent models: same target as the scene, drawn after it, sorted far to near.
+    constexpr uint16_t kViewTransparent = 2;
 
     // ImGui viewport rect is in logical pixels; bgfx needs framebuffer pixels
     float xscale = 1.0f, yscale = 1.0f;
@@ -76,9 +78,9 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         (uint32_t(background[2] * 255.0f) <<  8) |
         (uint32_t(background[3] * 255.0f));
 
-    // Ensure views render in order: background(0), scene(1)
-    const uint16_t viewOrder[] = { kViewBackground, kViewScene };
-    bgfx_set_view_order(0, 2, viewOrder);
+    // Ensure views render in order: background(0), scene(1), transparent(2)
+    const uint16_t viewOrder[] = { kViewBackground, kViewScene, kViewTransparent };
+    bgfx_set_view_order(0, 3, viewOrder);
 
     // Use viewport dimensions as the render target size (works for both backbuffer and offscreen FB)
     const int fbWidth = width;
@@ -88,7 +90,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     bgfx_set_view_rect(kViewBackground, 0, 0, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewBackground, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, clearColor, 1.0f, 0);
 
-    if (!drawBackgroundImage(0, 0, width, height, fbWidth, fbHeight))
+    if (!drawBackgroundImage(0, 0, width, height, fbWidth, fbHeight, xscale, yscale))
         bgfx_touch(kViewBackground);
 
     // draw the scene
@@ -110,6 +112,14 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     // View 1: 3D scene with camera (viewport subset)
     bgfx_set_view_rect(kViewScene, vpX, vpY, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewScene, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
+    // Keep submission order, like OpenGL: SOFA draws debug overlays after the models
+    // they annotate and relies on that order (e.g. geometry drawn on the same surface
+    // with LEQUAL). bgfx's default mode sorts by shader program instead, so the result
+    // changed with whichever program a component happened to use.
+    bgfx_set_view_mode(kViewScene, BGFX_VIEW_MODE_SEQUENTIAL);
+    bgfx_set_view_rect(kViewTransparent, vpX, vpY, width, height, 0.0f, 1.0f);
+    bgfx_set_view_clear(kViewTransparent, BGFX_CLEAR_NONE, 0, 1.0f, 0);
+    bgfx_set_view_mode(kViewTransparent, BGFX_VIEW_MODE_DEPTH_DESCENDING);
     float projY5 = 1.0f;
     {
         double viewd[16]{};
@@ -137,6 +147,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         }
 
         bgfx_set_view_transform(kViewScene, view, proj);
+        bgfx_set_view_transform(kViewTransparent, view, proj);
 
         // Update the visual params
         vparams->zNear() = camera->getZNear();
@@ -153,13 +164,20 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     if (drawTool)
     {
         drawTool->setViewId(kViewScene);
+        drawTool->setTransparentViewId(kViewTransparent);
         drawTool->setCameraPosition(camera->getPosition());
         bool isOrtho = (camera->getCameraType() == sofa::core::visual::VisualParams::ORTHOGRAPHIC_TYPE);
         drawTool->setScreenParams(static_cast<float>(width), static_cast<float>(height), projY5, isOrtho);
-        drawTool->setFramebufferSize(static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight), 1.0f);
+        drawTool->setFramebufferSize(static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight), yscale);
     }
 
     sofa::simulation::node::draw(vparams, groot);
+
+    // Single-primitive DrawTool calls (drawLine, drawTriangle, ...) are batched until a
+    // state change; submit what is still pending so it is drawn in this frame, with
+    // this frame's camera, instead of leaking into the next one.
+    if (drawTool)
+        drawTool->flush();
 }
 
 void SceneRendererBGFX::setBackgroundImage(const std::string& filename)
@@ -197,7 +215,8 @@ void SceneRendererBGFX::clearBackgroundImage()
     m_currentBackgroundFilename.clear();
 }
 
-bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH, int fbW, int fbH)
+bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH, int fbW, int fbH,
+                                            float xscale, float yscale)
 {
     if (m_currentBackgroundFilename.empty())
         return false;
@@ -239,8 +258,9 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
         const float texH = static_cast<float>(img->getHeight());
         if (texW > 0.0f && texH > 0.0f)
         {
-            uMax = static_cast<float>(vpW) / texW;
-            vMax = static_cast<float>(vpH) / texH;
+            // One texel per logical pixel, like the GL backend, whatever the content scale.
+            uMax = static_cast<float>(vpW) / (texW * xscale);
+            vMax = static_cast<float>(vpH) / (texH * yscale);
         }
     }
 
