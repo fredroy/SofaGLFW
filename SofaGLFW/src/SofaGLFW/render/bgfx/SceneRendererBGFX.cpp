@@ -167,6 +167,12 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     }
 
     sofa::simulation::node::draw(vparams, groot);
+
+    // Single-primitive DrawTool calls (drawLine, drawTriangle, ...) are batched until a
+    // state change; submit what is still pending so it is drawn in this frame, with
+    // this frame's camera, instead of leaking into the next one.
+    if (drawTool)
+        drawTool->flush();
 }
 
 void SceneRendererBGFX::setBackgroundImage(const std::string& filename)
