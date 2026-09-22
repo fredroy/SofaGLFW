@@ -70,6 +70,8 @@ private:
 
     uint32_t m_debug = BGFX_DEBUG_TEXT;
     uint32_t m_reset = BGFX_RESET_VSYNC | BGFX_RESET_HIDPI;
+    /// Main window swap chain description (bgfx API >= 160); kept so resets only touch size/flags.
+    bgfx_swap_chain_t m_swapChain{};
     bool m_initialized{false};
 };
 

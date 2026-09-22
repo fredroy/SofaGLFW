@@ -226,26 +226,35 @@ if(SOFAIMGUI_USE_BGFX)
 
     # Shader compilation
     set(SOFAIMGUI_SHADER_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/src")
-    set(SOFAIMGUI_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders")
+    # Compiled shaders are build products (they depend on the pinned bgfx's shaderc):
+    # they go to the build tree and are not versioned. SofaGLFW's bgfx backend loads
+    # vs/fs_imgui from here too (see SofaGLFW/CMakeLists.txt).
+    set(SOFAIMGUI_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
     set(BGFX_SHADER_INCLUDE_PATH "${bgfx_SOURCE_DIR}/bgfx/src")
 
     if(APPLE)
         set(SOFAIMGUI_SHADER_PLATFORM "osx")
-        set(SOFAIMGUI_SHADER_PROFILES metal 120)
+        set(SOFAIMGUI_SHADER_PROFILES metal 330)
         set(SOFAIMGUI_SHADER_PROFILE_DIRS metal glsl)
     elseif(WIN32)
         set(SOFAIMGUI_SHADER_PLATFORM "windows")
-        set(SOFAIMGUI_SHADER_PROFILES s_5_0 spirv 120)
+        set(SOFAIMGUI_SHADER_PROFILES s_5_0 spirv 330)
         set(SOFAIMGUI_SHADER_PROFILE_DIRS dxbc spirv glsl)
     elseif(UNIX)
         set(SOFAIMGUI_SHADER_PLATFORM "linux")
-        set(SOFAIMGUI_SHADER_PROFILES spirv 120)
+        set(SOFAIMGUI_SHADER_PROFILES spirv 330)
         set(SOFAIMGUI_SHADER_PROFILE_DIRS spirv glsl)
     endif()
 
+    # The ImGui draw shaders (vs/fs_ocornut_imgui) are compiled here as well and loaded
+    # at runtime: bgfx rejects shader binaries whose format does not match the runtime,
+    # so they must be produced by the shaderc that ships with the pinned bgfx rather
+    # than committed as precompiled C arrays.
     set(SOFAIMGUI_SHADER_SOURCES
         vs_imgui VERTEX varying_imgui.def.sc
         fs_imgui FRAGMENT varying_imgui.def.sc
+        vs_ocornut_imgui VERTEX varying_ocornut_imgui.def.sc
+        fs_ocornut_imgui FRAGMENT varying_ocornut_imgui.def.sc
     )
 
     set(SOFAIMGUI_ALL_SHADER_OUTPUTS "")
@@ -283,7 +292,8 @@ if(SOFAIMGUI_USE_BGFX)
                     --varyingdef "${SOFAIMGUI_SHADER_SRC_DIR}/${VARYING_FILE}"
                     -i "${BGFX_SHADER_INCLUDE_PATH}"
                     -i "${SOFAIMGUI_SHADER_SRC_DIR}"
-                DEPENDS "${SOFAIMGUI_SHADER_SRC_DIR}/${SHADER_NAME}.sc" "${SOFAIMGUI_SHADER_SRC_DIR}/${VARYING_FILE}"
+                # shaderc itself is a dependency: its binary format follows the bgfx version.
+                DEPENDS "${SOFAIMGUI_SHADER_SRC_DIR}/${SHADER_NAME}.sc" "${SOFAIMGUI_SHADER_SRC_DIR}/${VARYING_FILE}" shaderc
                 COMMENT "Compiling shader ${SHADER_NAME} (${PROFILE})"
                 VERBATIM
             )
@@ -296,8 +306,7 @@ if(SOFAIMGUI_USE_BGFX)
     add_dependencies(${PROJECT_NAME}_shaders shaderc)
     add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_shaders)
 
-    set(SOFAIMGUI_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_RESOURCES_DIR="${SOFAIMGUI_RESOURCES_DIR}")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_SHADERS_DIR="${SOFAIMGUI_SHADER_OUTPUT_DIR}")
 endif()
 
 # setup the same API exports for imgui

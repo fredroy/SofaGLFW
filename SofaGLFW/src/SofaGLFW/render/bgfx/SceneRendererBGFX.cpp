@@ -85,7 +85,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     const int fbHeight = height;
 
     // View 0: clear entire render target + optional background texture
-    bgfx_set_view_rect(kViewBackground, 0, 0, width, height);
+    bgfx_set_view_rect(kViewBackground, 0, 0, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewBackground, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, clearColor, 1.0f, 0);
 
     if (!drawBackgroundImage(0, 0, width, height, fbWidth, fbHeight))
@@ -108,7 +108,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     camera->d_heightViewport.setValue(viewport.height);
 
     // View 1: 3D scene with camera (viewport subset)
-    bgfx_set_view_rect(kViewScene, vpX, vpY, width, height);
+    bgfx_set_view_rect(kViewScene, vpX, vpY, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewScene, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
     float projY5 = 1.0f;
     {
@@ -212,7 +212,7 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
     if (m_bgProgram.idx == UINT16_MAX)
     {
         m_bgProgram = bgfxplugin::loadProgram("vs_imgui", "fs_imgui",
-            std::string(SOFAIMGUI_RESOURCES_DIR) + "/shaders");
+            SOFAIMGUI_SHADERS_DIR);
         m_bgTexUniform = bgfx_create_uniform("s_texColor", BGFX_UNIFORM_TYPE_SAMPLER, 1);
     }
 
