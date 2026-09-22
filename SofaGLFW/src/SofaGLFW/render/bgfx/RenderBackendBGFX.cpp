@@ -88,6 +88,13 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     init.swapChain.flags = m_reset & kSwapChainFlags;
     init.reset = m_reset & ~kSwapChainFlags;
     init.callback = bgfxScreenshotCallback();
+
+    // Per-frame transient geometry pool. bgfx's defaults (6 MB vertices, 2 MB indices)
+    // are sized for small UIs; DrawToolBGFX streams all debug geometry through it
+    // (collision models, force fields, many spheres...) and the GUI shares the same
+    // pool. The pool is allocated once, for each of the two frames in flight.
+    init.limits.maxTransientVbSize = 32u << 20;
+    init.limits.maxTransientIbSize = 16u << 20;
     m_swapChain = init.swapChain;
 
     const bool res = bgfx_init(&init);
