@@ -112,6 +112,11 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     // View 1: 3D scene with camera (viewport subset)
     bgfx_set_view_rect(kViewScene, vpX, vpY, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewScene, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
+    // Keep submission order, like OpenGL: SOFA draws debug overlays after the models
+    // they annotate and relies on that order (e.g. geometry drawn on the same surface
+    // with LEQUAL). bgfx's default mode sorts by shader program instead, so the result
+    // changed with whichever program a component happened to use.
+    bgfx_set_view_mode(kViewScene, BGFX_VIEW_MODE_SEQUENTIAL);
     bgfx_set_view_rect(kViewTransparent, vpX, vpY, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewTransparent, BGFX_CLEAR_NONE, 0, 1.0f, 0);
     bgfx_set_view_mode(kViewTransparent, BGFX_VIEW_MODE_DEPTH_DESCENDING);
