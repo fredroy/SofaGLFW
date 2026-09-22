@@ -373,6 +373,16 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
 
         s_mapGUIs[glfwWindow] = this;
 
+        // Apply the persisted rendering preferences (vsync/MSAA) BEFORE initializing
+        // the engine: some backends (bgfx/Metal) bake these into the swapchain at
+        // init time, so toggling them afterwards would leave the window in the wrong
+        // state for a while. Before init, setVsync/setMsaa only update the reset
+        // flags (applyReset() early-returns until initialized), so initEngine picks
+        // up the correct state from frame 0.
+        const auto renderCfg = m_guiEngine->getInitialRenderConfig();
+        m_backend->setMsaa(renderCfg.msaa);
+        m_backend->setVsync(renderCfg.vsync);
+
         m_backend->initEngine(glfwWindow, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 
         m_guiEngine->initBackend(glfwWindow);

@@ -65,6 +65,7 @@ public:
     bool isTerminated() const override { return m_isTerminated; };
     bool dispatchMouseEvents() override;
     void contentScaleChanged(float xscale, float yscale) override;
+    InitialRenderConfig getInitialRenderConfig() const override;
 
     // apply global scale on the given monitor (if null, it will fetch the main monitor)
     void setScale(float globalScale);
