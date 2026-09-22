@@ -60,6 +60,8 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
 {
     constexpr uint16_t kViewBackground = 0;
     constexpr uint16_t kViewScene = 1;
+    // Transparent models: same target as the scene, drawn after it, sorted far to near.
+    constexpr uint16_t kViewTransparent = 2;
 
     // ImGui viewport rect is in logical pixels; bgfx needs framebuffer pixels
     float xscale = 1.0f, yscale = 1.0f;
@@ -76,9 +78,9 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         (uint32_t(background[2] * 255.0f) <<  8) |
         (uint32_t(background[3] * 255.0f));
 
-    // Ensure views render in order: background(0), scene(1)
-    const uint16_t viewOrder[] = { kViewBackground, kViewScene };
-    bgfx_set_view_order(0, 2, viewOrder);
+    // Ensure views render in order: background(0), scene(1), transparent(2)
+    const uint16_t viewOrder[] = { kViewBackground, kViewScene, kViewTransparent };
+    bgfx_set_view_order(0, 3, viewOrder);
 
     // Use viewport dimensions as the render target size (works for both backbuffer and offscreen FB)
     const int fbWidth = width;
@@ -110,6 +112,9 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     // View 1: 3D scene with camera (viewport subset)
     bgfx_set_view_rect(kViewScene, vpX, vpY, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewScene, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
+    bgfx_set_view_rect(kViewTransparent, vpX, vpY, width, height, 0.0f, 1.0f);
+    bgfx_set_view_clear(kViewTransparent, BGFX_CLEAR_NONE, 0, 1.0f, 0);
+    bgfx_set_view_mode(kViewTransparent, BGFX_VIEW_MODE_DEPTH_DESCENDING);
     float projY5 = 1.0f;
     {
         double viewd[16]{};
@@ -137,6 +142,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         }
 
         bgfx_set_view_transform(kViewScene, view, proj);
+        bgfx_set_view_transform(kViewTransparent, view, proj);
 
         // Update the visual params
         vparams->zNear() = camera->getZNear();
@@ -153,6 +159,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     if (drawTool)
     {
         drawTool->setViewId(kViewScene);
+        drawTool->setTransparentViewId(kViewTransparent);
         drawTool->setCameraPosition(camera->getPosition());
         bool isOrtho = (camera->getCameraType() == sofa::core::visual::VisualParams::ORTHOGRAPHIC_TYPE);
         drawTool->setScreenParams(static_cast<float>(width), static_cast<float>(height), projY5, isOrtho);
