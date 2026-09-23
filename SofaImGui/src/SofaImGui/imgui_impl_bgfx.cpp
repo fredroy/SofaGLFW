@@ -43,7 +43,11 @@ void ImGui_Implbgfx_RenderDrawLists(ImDrawData* draw_data)
     constexpr uint64_t state = BGFX_STATE_WRITE_RGB
         | BGFX_STATE_WRITE_A
         | BGFX_STATE_MSAA
-        | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA);
+        // As ImGui's own backends (glBlendFuncSeparate): the alpha is
+        // src + dst * (1 - src), so an opaque window stays opaque under translucent
+        // widgets (the screenshot PNGs keep no see-through holes).
+        | BGFX_STATE_BLEND_FUNC_SEPARATE(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA,
+                                         BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
     const ImVec2 clip_off   = draw_data->DisplayPos;
     const ImVec2 clip_scale = draw_data->FramebufferScale;
