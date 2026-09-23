@@ -49,6 +49,7 @@ public:
 
     bool supportsMultiViewport() const override { return true; }
     bool needsGlfwContext() const override { return true; }
+    bool supportsVideoCapture() const override { return true; }
 
     void setVsync(bool enabled) override;
     bool isVsync() const override { return m_vsync; }

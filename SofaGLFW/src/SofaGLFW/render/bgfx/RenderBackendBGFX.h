@@ -51,6 +51,8 @@ public:
 
     bool supportsMultiViewport() const override { return false; }
     bool needsGlfwContext() const override { return false; }
+    /// bgfx reads textures back asynchronously (a few frames later): not yet wired to video.
+    bool supportsVideoCapture() const override { return false; }
 
     void setVsync(bool enabled) override;
     bool isVsync() const override { return (m_reset & BGFX_RESET_VSYNC) != 0; }

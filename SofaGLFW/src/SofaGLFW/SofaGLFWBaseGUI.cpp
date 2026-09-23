@@ -174,9 +174,11 @@ bool SofaGLFWBaseGUI::init(int nbMSAASamples)
         m_backend->configureVisualParams();
         m_backend->registerVisualModelAliases();
 
-        // A concrete video recorder is available only when a backend registers
-        // one (OpenGL). Otherwise recording is silently unavailable.
-        m_videoRecorder = render::createVideoRecorder();
+        // A concrete video recorder is registered by the OpenGL code (VideoRecorderGL),
+        // but it can only be fed by a backend reading its frames back synchronously:
+        // on bgfx, recording would start ffmpeg and never deliver a frame.
+        if (m_backend->supportsVideoCapture())
+            m_videoRecorder = render::createVideoRecorder();
 
         m_bGlfwIsInitialized = true;
         return true;
