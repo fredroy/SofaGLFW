@@ -50,6 +50,11 @@ public:
     static constexpr uint16_t kOverlayViewCount = 8;
     static constexpr uint16_t kSceneViewCount = kFirstOverlayView + kOverlayViewCount;
 
+    /// Framebuffer pixels per window unit (ImGui's FramebufferScale): the factor from
+    /// GLFW/ImGui sizes to render target pixels. 2 on a Retina Mac, but 1 on Windows
+    /// and X11, where window sizes are already pixels whatever the content scale.
+    static void framebufferScale(GLFWwindow* window, float& xscale, float& yscale);
+
     SceneRendererBGFX() = default;
     ~SceneRendererBGFX() override;
 
