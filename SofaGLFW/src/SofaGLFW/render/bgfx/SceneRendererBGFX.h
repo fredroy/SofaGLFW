@@ -24,6 +24,7 @@
 #include <SofaGLFW/render/ISceneRenderer.h>
 
 #include <bgfx/c99/bgfx.h>
+#include <BGFXPlugin/Context.h>
 #include <BGFXPlugin/Texture.h>
 
 #include <map>
@@ -36,7 +37,7 @@ namespace sofaglfw::render
 /// bgfx implementation of ISceneRenderer: two-view (background + scene) draw
 /// with camera matrix setup, depth-range remap for non-GL backends, and a
 /// textured background quad rendered from a transient buffer.
-class SceneRendererBGFX : public ISceneRenderer
+class SceneRendererBGFX : public ISceneRenderer, public bgfxplugin::GpuResourceOwner
 {
 public:
     SceneRendererBGFX() = default;
@@ -52,6 +53,7 @@ public:
     void setBackgroundImage(const std::string& filename) override;
     void clearBackgroundImage() override;
     void releaseResources() override;
+    void releaseGpuResources() override { releaseResources(); }
 
 private:
     /// The rect is in framebuffer pixels; the scale converts it back to logical pixels
