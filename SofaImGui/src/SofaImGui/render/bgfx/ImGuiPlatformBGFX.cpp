@@ -29,6 +29,7 @@
 #include <bgfx/bgfx.h>
 
 #include <sofa/helper/io/STBImage.h>
+#include <sofa/helper/logging/Messaging.h>
 
 #include <algorithm>
 #include <cstring>
@@ -129,13 +130,30 @@ void ImGuiPlatformBGFX::recreateSceneFB(uint16_t width, uint16_t height)
     if (width == 0 || height == 0)
         return;
 
+    // Depth format: D24S8 is not a render target everywhere (Apple GPUs through
+    // MoltenVK, AMD on Vulkan); take the first one the renderer can render into.
+    const bgfx_caps_t* caps = bgfx_get_caps();
+    bgfx_texture_format_t depthFormat = BGFX_TEXTURE_FORMAT_D24S8;
+    for (const bgfx_texture_format_t candidate : { BGFX_TEXTURE_FORMAT_D24S8, BGFX_TEXTURE_FORMAT_D32F,
+                                                   BGFX_TEXTURE_FORMAT_D24, BGFX_TEXTURE_FORMAT_D16 })
+    {
+        if (caps->formats[candidate] & BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER)
+        {
+            depthFormat = candidate;
+            break;
+        }
+    }
+
     bgfx_texture_handle_t textures[2];
     textures[0] = bgfx_create_texture_2d(width, height, false, 1,
         BGFX_TEXTURE_FORMAT_RGBA8, BGFX_TEXTURE_RT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP, NULL, 0);
     textures[1] = bgfx_create_texture_2d(width, height, false, 1,
-        BGFX_TEXTURE_FORMAT_D24S8, BGFX_TEXTURE_RT_WRITE_ONLY, NULL, 0);
+        depthFormat, BGFX_TEXTURE_RT_WRITE_ONLY, NULL, 0);
 
     m_sceneFB = bgfx_create_frame_buffer_from_handles(2, textures, true);
+    if (m_sceneFB.idx == UINT16_MAX)
+        msg_error("ImGuiPlatformBGFX") << "Could not create the " << width << "x" << height
+                                       << " scene frame buffer: the viewport stays empty.";
     m_sceneFBTexture = textures[0];
     m_sceneFBWidth = width;
     m_sceneFBHeight = height;

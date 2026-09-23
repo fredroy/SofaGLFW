@@ -28,6 +28,13 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+#include <sofa/helper/logging/Messaging.h>
+
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <string>
+
 #include <bgfx/bgfx.h>
 
 #include <sofa/core/ObjectFactory.h>
@@ -61,6 +68,49 @@ RenderBackendBGFX::~RenderBackendBGFX()
     terminate();
 }
 
+namespace
+{
+
+/// Renderer requested with SOFA_BGFX_RENDERER (e.g. vulkan to run the Linux/Windows
+/// path on macOS through MoltenVK), or @p fallback when unset or unavailable.
+bgfx_renderer_type rendererFromEnvironment(bgfx_renderer_type fallback)
+{
+    const char* env = std::getenv("SOFA_BGFX_RENDERER");
+    if (!env || !*env)
+        return fallback;
+
+    std::string name(env);
+    std::transform(name.begin(), name.end(), name.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    static const std::pair<const char*, bgfx_renderer_type> kNames[] = {
+        { "noop", BGFX_RENDERER_TYPE_NOOP },
+        { "d3d11", BGFX_RENDERER_TYPE_DIRECT3D11 },
+        { "d3d12", BGFX_RENDERER_TYPE_DIRECT3D12 },
+        { "metal", BGFX_RENDERER_TYPE_METAL },
+        { "opengl", BGFX_RENDERER_TYPE_OPENGL },
+        { "gl", BGFX_RENDERER_TYPE_OPENGL },
+        { "opengles", BGFX_RENDERER_TYPE_OPENGLES },
+        { "vulkan", BGFX_RENDERER_TYPE_VULKAN },
+    };
+    for (const auto& [key, type] : kNames)
+    {
+        if (name != key)
+            continue;
+        bgfx_renderer_type supported[BGFX_RENDERER_TYPE_COUNT];
+        const uint8_t count = bgfx_get_supported_renderers(BGFX_RENDERER_TYPE_COUNT, supported);
+        if (std::find(supported, supported + count, type) != supported + count)
+            return type;
+        msg_warning("RenderBackendBGFX") << "SOFA_BGFX_RENDERER=" << env
+                                         << ": this renderer is not compiled in bgfx. Using the default.";
+        return fallback;
+    }
+    msg_warning("RenderBackendBGFX") << "SOFA_BGFX_RENDERER=" << env
+        << " is not a known renderer (noop, d3d11, d3d12, metal, opengl, opengles, vulkan). Using the default.";
+    return fallback;
+}
+
+} // namespace
+
 bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t height)
 {
     SOFA_UNUSED(width);
@@ -74,6 +124,7 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     bgfx_init_t init;
     bgfx_init_ctor(&init);
 
+    m_type = rendererFromEnvironment(m_type);
     init.type = m_type;
     init.platformData.type = bgfxNativeWindowHandleType();
     init.debug = true;
@@ -106,7 +157,10 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
 
     if (res)
+    {
         bgfxplugin::context::markInitialized();
+        msg_info("RenderBackendBGFX") << "bgfx renderer: " << bgfx_get_renderer_name(bgfx_get_renderer_type());
+    }
     m_initialized = res;
     return res;
 }
