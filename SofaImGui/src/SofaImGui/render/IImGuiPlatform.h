@@ -67,7 +67,9 @@ public:
     /// Bind/prepare the offscreen render target sized to (width,height) in
     /// framebuffer pixels. The scene is drawn into it, then shown via
     /// sceneTexture() inside the viewport ImGui window.
-    virtual void beginSceneTarget(int width, int height) = 0;
+    /// @param msaa samples of the scene target (0 or 1: none), where the backend
+    ///             renders the scene offscreen with multisampling (bgfx)
+    virtual void beginSceneTarget(int width, int height, int msaa) = 0;
 
     /// Unbind the offscreen render target.
     virtual void endSceneTarget() = 0;

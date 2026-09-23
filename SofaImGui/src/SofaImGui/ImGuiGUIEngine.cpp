@@ -387,6 +387,7 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     std::setlocale(LC_NUMERIC, "C.UTF-8");
 
     auto groot = baseGUI->getRootNode();
+    m_sceneMsaa = baseGUI->getMsaa(); // the scene target follows the Settings' MSAA
 
     // Start the Dear ImGui frame
     if (m_platform)
@@ -950,7 +951,7 @@ void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
     const int logicalH = std::max(1, static_cast<int>(m_viewportWindowSize.second));
 
     if (m_platform)
-        m_platform->beginSceneTarget(logicalW, logicalH);
+        m_platform->beginSceneTarget(logicalW, logicalH, m_sceneMsaa);
 
     // The scene is rendered using logical-pixel viewport; the scene renderer
     // applies content scale to reach framebuffer pixels where relevant.

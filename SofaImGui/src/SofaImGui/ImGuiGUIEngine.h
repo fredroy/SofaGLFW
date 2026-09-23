@@ -90,6 +90,7 @@ protected:
     sofaglfw::render::RenderAPI m_renderAPI{ sofaglfw::render::RenderAPI::Auto };
 
     std::pair<float, float> m_viewportWindowSize;
+    int m_sceneMsaa{0}; ///< MSAA samples of the offscreen scene target (backend setting)
     std::array<int, 4> m_viewportRect {}; // x, y, w, h in framebuffer pixels for bgfx rendering
     std::array<int, 4> m_viewportScreenRect {}; // x, y, w, h in screen pixels for overlay positioning
     bool isMouseOnViewport { false };

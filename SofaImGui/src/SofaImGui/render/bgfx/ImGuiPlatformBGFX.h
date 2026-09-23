@@ -43,7 +43,7 @@ public:
     void shutdown() override;
     void recreateFontsTexture() override;
 
-    void beginSceneTarget(int width, int height) override;
+    void beginSceneTarget(int width, int height, int msaa) override;
     void endSceneTarget() override;
     ImTextureID sceneTexture() const override;
     bool sceneTextureFlippedV() const override { return false; }
@@ -56,13 +56,14 @@ public:
     sofa::type::Vec2i readSceneTargetPixels(std::vector<uint8_t>& pixels) override;
 
 private:
-    void recreateSceneFB(uint16_t width, uint16_t height);
+    void recreateSceneFB(uint16_t width, uint16_t height, int msaa);
     void processScreenshotReadback();
 
     bgfx_frame_buffer_handle_t m_sceneFB{UINT16_MAX};
     bgfx_texture_handle_t m_sceneFBTexture{UINT16_MAX};
     uint16_t m_sceneFBWidth{0};
     uint16_t m_sceneFBHeight{0};
+    int m_sceneFBMsaa{0}; ///< samples asked for (the target may have fewer)
 
     bgfx_texture_handle_t m_readbackTexture{UINT16_MAX};
     uint16_t m_readbackWidth{0};
