@@ -147,7 +147,8 @@ void SofaGLFWGUI::setScene(sofa::simulation::NodeSPtr groot, const char* filenam
     }
     m_baseGUI.setOffscreen(!interactive && offscreen);
     m_baseGUI.setFrameOutputDirectory(interactive ? std::string{} : frameOutputDirectory);
-    m_baseGUI.createWindow(m_baseGUI.getWindowWidth(), m_baseGUI.getWindowHeight(), std::string("SOFA - " + strFilename).c_str(), m_bCreateWithFullScreen);
+    if (!m_baseGUI.createWindow(m_baseGUI.getWindowWidth(), m_baseGUI.getWindowHeight(), std::string("SOFA - " + strFilename).c_str(), m_bCreateWithFullScreen))
+        return; // reported; the main loop ends at once without a window
 
     // needs to be done after for background
     this->configureGUI(groot);
