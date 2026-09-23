@@ -48,7 +48,8 @@ namespace sofaglfw::render
 
 SceneRendererBGFX::~SceneRendererBGFX()
 {
-    releaseResources();
+    if (bgfxplugin::context::isAlive())
+        releaseResources();
 }
 
 void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
@@ -307,7 +308,14 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
 
 void SceneRendererBGFX::releaseResources()
 {
+    // The background textures release their own handle (GpuResourceOwner).
     m_backgrounds.clear();
+    if (!bgfxplugin::context::isAlive())
+    {
+        m_bgProgram.idx = UINT16_MAX;
+        m_bgTexUniform.idx = UINT16_MAX;
+        return;
+    }
 
     if (m_bgProgram.idx != UINT16_MAX)
     {

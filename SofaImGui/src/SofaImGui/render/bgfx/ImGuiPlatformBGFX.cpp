@@ -22,6 +22,7 @@
 #include <SofaImGui/render/bgfx/ImGuiPlatformBGFX.h>
 #include <SofaImGui/render/ImGuiPlatformFactory.h>
 #include <SofaImGui/imgui_impl_bgfx.h>
+#include <BGFXPlugin/Context.h>
 
 #include <backends/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
@@ -90,6 +91,12 @@ void ImGuiPlatformBGFX::renderDrawData(ImDrawData* drawData)
 
 void ImGuiPlatformBGFX::shutdown()
 {
+    // Normally runs before the backend shuts bgfx down; after that, the handles are gone.
+    if (!bgfxplugin::context::isAlive())
+    {
+        m_sceneFB.idx = m_sceneFBTexture.idx = m_readbackTexture.idx = UINT16_MAX;
+        return;
+    }
     if (m_sceneFB.idx != UINT16_MAX)
     {
         bgfx_destroy_frame_buffer(m_sceneFB);
