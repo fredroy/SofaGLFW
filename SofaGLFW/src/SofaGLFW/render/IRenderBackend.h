@@ -23,9 +23,12 @@
 
 #include <SofaGLFW/config.h>
 
+#include <sofa/type/Vec.h>
+
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 struct GLFWwindow;
 
@@ -65,8 +68,20 @@ public:
     /// Request a screenshot of the default backbuffer, saved to @p path. Used by
     /// the headless/Null engine which has no offscreen viewport target. May be
     /// asynchronous; the backend completes it on the next present().
+    /// @param compressionLevel image quality/compression, <0 for the default
     /// @return true if the request was accepted.
-    virtual bool requestBackbufferScreenshot(GLFWwindow* window, const std::string& path) = 0;
+    virtual bool requestBackbufferScreenshot(GLFWwindow* window, const std::string& path,
+                                             int compressionLevel = -1) = 0;
+
+    /// Size of the VisualParams viewport this backend's scene renderer expects when
+    /// drawing straight into @p window's backbuffer (no GUI offscreen target):
+    /// framebuffer pixels for OpenGL, logical pixels for bgfx, whose scene renderer
+    /// applies the window content scale itself.
+    virtual sofa::type::Vec2i backbufferViewportSize(GLFWwindow* window) const = 0;
+
+    /// Synchronous read-back of the backbuffer (RGBA8, bottom row first), for video
+    /// recording. @return its size, or {0, 0} (and no pixels) when unsupported.
+    virtual sofa::type::Vec2i readBackbufferPixels(GLFWwindow* window, std::vector<uint8_t>& pixels) = 0;
 
     /// Create the DrawTool matching this backend (DrawToolGL / DrawToolBGFX).
     virtual std::unique_ptr<sofa::helper::visual::DrawTool> makeDrawTool() = 0;

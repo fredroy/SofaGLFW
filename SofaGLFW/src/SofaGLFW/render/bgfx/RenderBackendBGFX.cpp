@@ -193,14 +193,31 @@ void RenderBackendBGFX::terminate()
     m_initialized = false;
 }
 
-bool RenderBackendBGFX::requestBackbufferScreenshot(GLFWwindow* window, const std::string& path)
+bool RenderBackendBGFX::requestBackbufferScreenshot(GLFWwindow* window, const std::string& path, int compressionLevel)
 {
+    SOFA_UNUSED(compressionLevel); // the bgfx callback writes PNG
     SOFA_UNUSED(window);
     // Screenshot of the default backbuffer; serviced by the bgfx callback on the
     // next frame.
     bgfx_frame_buffer_handle_t handle = BGFX_INVALID_HANDLE;
     bgfx_request_screen_shot(handle, path.c_str());
     return true;
+}
+
+sofa::type::Vec2i RenderBackendBGFX::backbufferViewportSize(GLFWwindow* window) const
+{
+    // Logical pixels: SceneRendererBGFX applies the window content scale.
+    int width = 0, height = 0;
+    glfwGetWindowSize(window, &width, &height);
+    return { width, height };
+}
+
+sofa::type::Vec2i RenderBackendBGFX::readBackbufferPixels(GLFWwindow* window, std::vector<uint8_t>& pixels)
+{
+    // bgfx reads back asynchronously (screenshots): no synchronous read for video.
+    SOFA_UNUSED(window);
+    pixels.clear();
+    return { 0, 0 };
 }
 
 std::unique_ptr<sofa::helper::visual::DrawTool> RenderBackendBGFX::makeDrawTool()

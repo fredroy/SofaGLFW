@@ -41,7 +41,9 @@ public:
     void resize(uint32_t width, uint32_t height) override;
     uint32_t present(GLFWwindow* window) override;
     void terminate() override;
-    bool requestBackbufferScreenshot(GLFWwindow* window, const std::string& path) override;
+    bool requestBackbufferScreenshot(GLFWwindow* window, const std::string& path, int compressionLevel = -1) override;
+    sofa::type::Vec2i backbufferViewportSize(GLFWwindow* window) const override;
+    sofa::type::Vec2i readBackbufferPixels(GLFWwindow* window, std::vector<uint8_t>& pixels) override;
 
     std::unique_ptr<sofa::helper::visual::DrawTool> makeDrawTool() override;
     void configureVisualParams() override;
