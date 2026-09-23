@@ -40,6 +40,16 @@ namespace sofaglfw::render
 class SceneRendererBGFX : public ISceneRenderer, public bgfxplugin::GpuResourceOwner
 {
 public:
+    /// bgfx views of the scene, all rendered into the scene target, in this order:
+    /// background, scene, transparent models, then the overlays of DrawToolBGFX
+    /// (OglSceneFrame, color map legends...).
+    static constexpr uint16_t kViewBackground = 0;
+    static constexpr uint16_t kViewScene = 1;
+    static constexpr uint16_t kViewTransparent = 2;
+    static constexpr uint16_t kFirstOverlayView = 3;
+    static constexpr uint16_t kOverlayViewCount = 8;
+    static constexpr uint16_t kSceneViewCount = kFirstOverlayView + kOverlayViewCount;
+
     SceneRendererBGFX() = default;
     ~SceneRendererBGFX() override;
 

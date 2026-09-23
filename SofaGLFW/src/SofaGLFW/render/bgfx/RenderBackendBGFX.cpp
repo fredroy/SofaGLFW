@@ -32,7 +32,11 @@
 
 #include <sofa/core/ObjectFactory.h>
 #include <sofa/core/visual/VisualParams.h>
+#include <sofa/helper/system/PluginManager.h>
 
+#include <sstream>
+
+#include <BGFXPlugin/BGFXIgnoredComponent.h>
 #include <BGFXPlugin/Context.h>
 #include <BGFXPlugin/DrawToolBGFX.h>
 #include <BGFXPlugin/init.h>
@@ -161,11 +165,51 @@ void RenderBackendBGFX::configureVisualParams()
 
 void RenderBackendBGFX::registerVisualModelAliases()
 {
+    // The modules defining the names aliased below. Registered after the aliases (by a
+    // scene's RequiredPlugin: runSofaGLFW loads no plugin list), they would log that these
+    // names already exist. Register them first, as runSofa's plugin list does: the aliases
+    // then replace their classes silently, and their later registration is skipped.
+    // Modules missing from the build (Sofa.GL without OpenGL) are skipped quietly.
+    using sofa::helper::system::PluginManager;
+    auto& pluginManager = PluginManager::getInstance();
+    for (const char* module : { "Sofa.Component.Visual",
+                                "Sofa.GL.Component.Rendering3D",
+                                "Sofa.GL.Component.Rendering2D" })
+    {
+        if (!pluginManager.pluginIsLoaded(module))
+        {
+            if (pluginManager.findPlugin(module).empty())
+                continue;
+            std::ostringstream errlog;
+            const auto status = pluginManager.loadPlugin(module, PluginManager::getDefaultSuffix(), true, true, &errlog);
+            if (status != PluginManager::PluginLoadStatus::SUCCESS
+                && status != PluginManager::PluginLoadStatus::ALREADY_LOADED)
+            {
+                continue;
+            }
+            pluginManager.init(pluginManager.isPluginLoaded(module).first);
+        }
+        sofa::core::ObjectFactory::getInstance()->registerObjectsFromPlugin(module);
+    }
+
     bgfxplugin::registerComponents(sofa::core::ObjectFactory::getInstance());
 
     sofa::core::ObjectFactory::ClassEntry::SPtr classVisualModel;
     sofa::core::ObjectFactory::AddAlias("VisualModel", "BGFXModel", true, &classVisualModel);
     sofa::core::ObjectFactory::AddAlias("OglModel", "BGFXModel", true, &classVisualModel);
+
+    // The bgfx counterparts of Sofa.GL components, under their GL names.
+    for (const auto& [glName, bgfxName] : { std::pair{ "OglLabel", "BGFXLabel" },
+                                            std::pair{ "OglSceneFrame", "BGFXSceneFrame" },
+                                            std::pair{ "OglColorMap", "BGFXColorMap" },
+                                            std::pair{ "DataDisplay", "BGFXDataDisplay" } })
+    {
+        sofa::core::ObjectFactory::ClassEntry::SPtr entry;
+        sofa::core::ObjectFactory::AddAlias(glName, bgfxName, true, &entry);
+    }
+
+    // The other Sofa.GL components (lights, shaders...) would call GL without a context.
+    bgfxplugin::ignoreGLOnlyComponents(sofa::core::ObjectFactory::getInstance());
 }
 
 void RenderBackendBGFX::applyReset()
