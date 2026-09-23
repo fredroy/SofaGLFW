@@ -23,6 +23,7 @@
 #include <SofaImGui/render/ImGuiPlatformFactory.h>
 #include <SofaImGui/imgui_impl_bgfx.h>
 #include <BGFXPlugin/Context.h>
+#include <SofaGLFW/render/bgfx/SceneRendererBGFX.h>
 
 #include <backends/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
@@ -175,11 +176,10 @@ void ImGuiPlatformBGFX::beginSceneTarget(int width, int height)
 
     if (m_sceneFB.idx != UINT16_MAX)
     {
-        // Scene views 0 (background), 1 (scene) and 2 (transparent models) render
+        // Every scene view (background, scene, transparent models, overlays) renders
         // into the offscreen FB.
-        bgfx_set_view_frame_buffer(0, m_sceneFB);
-        bgfx_set_view_frame_buffer(1, m_sceneFB);
-        bgfx_set_view_frame_buffer(2, m_sceneFB);
+        for (uint16_t view = 0; view < sofaglfw::render::SceneRendererBGFX::kSceneViewCount; ++view)
+            bgfx_set_view_frame_buffer(view, m_sceneFB);
     }
 }
 
