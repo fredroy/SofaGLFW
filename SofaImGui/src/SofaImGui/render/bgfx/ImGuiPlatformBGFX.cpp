@@ -266,6 +266,11 @@ void ImGuiPlatformBGFX::pumpScreenshot(uint32_t presentedFrame)
         processScreenshotReadback();
 }
 
+bool ImGuiPlatformBGFX::sceneTextureFlippedV() const
+{
+    return bgfxplugin::context::isAlive() && bgfx_get_caps()->originBottomLeft;
+}
+
 void ImGuiPlatformBGFX::processScreenshotReadback()
 {
     m_readbackPending = false;
@@ -279,9 +284,12 @@ void ImGuiPlatformBGFX::processScreenshotReadback()
     uint8_t* dst = image.getPixels();
     const uint32_t pitch = m_readbackWidth * 4;
 
+    // STBImage::save writes the rows bottom-up: give it bottom-up rows. The texture
+    // is top-down, except on renderers whose targets start at the bottom left.
+    const bool bottomUp = sceneTextureFlippedV();
     for (uint32_t row = 0; row < m_readbackHeight; ++row)
     {
-        uint32_t srcRow = m_readbackHeight - 1 - row;
+        const uint32_t srcRow = bottomUp ? row : m_readbackHeight - 1 - row;
         memcpy(dst + row * pitch, src + srcRow * pitch, pitch);
     }
 
