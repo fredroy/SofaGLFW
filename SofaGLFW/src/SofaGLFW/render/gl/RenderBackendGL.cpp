@@ -31,6 +31,7 @@
 #include <sofa/gl/DrawToolGL.h>
 #include <sofa/core/visual/VisualParams.h>
 #include <sofa/helper/logging/Messaging.h>
+#include <sofa/helper/io/STBImage.h>
 
 namespace sofaglfw::render
 {
@@ -101,13 +102,36 @@ void RenderBackendGL::terminate()
     // Nothing GL-global to release; contexts are owned by GLFW windows.
 }
 
-bool RenderBackendGL::requestBackbufferScreenshot(GLFWwindow* window, const std::string& path)
+bool RenderBackendGL::requestBackbufferScreenshot(GLFWwindow* window, const std::string& path, int compressionLevel)
+{
+    // Synchronous, like master's NullGUIEngine: read the current viewport.
+    SOFA_UNUSED(window);
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+
+    sofa::helper::io::STBImage image;
+    image.init(viewport[2], viewport[3], 1, 1, sofa::helper::io::Image::DataType::UINT32,
+               sofa::helper::io::Image::ChannelFormat::RGBA);
+    glReadPixels(viewport[0], viewport[1], viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, image.getPixels());
+    return image.save(path, compressionLevel < 0 ? 90 : compressionLevel);
+}
+
+sofa::type::Vec2i RenderBackendGL::backbufferViewportSize(GLFWwindow* window) const
+{
+    // glViewport takes framebuffer pixels.
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    return { width, height };
+}
+
+sofa::type::Vec2i RenderBackendGL::readBackbufferPixels(GLFWwindow* window, std::vector<uint8_t>& pixels)
 {
     SOFA_UNUSED(window);
-    SOFA_UNUSED(path);
-    // The ImGui platform handles viewport screenshots; the headless engine does
-    // not currently capture the GL backbuffer.
-    return false;
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    pixels.resize(static_cast<std::size_t>(viewport[2]) * viewport[3] * 4);
+    glReadPixels(viewport[0], viewport[1], viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    return { viewport[2], viewport[3] };
 }
 
 std::unique_ptr<sofa::helper::visual::DrawTool> RenderBackendGL::makeDrawTool()

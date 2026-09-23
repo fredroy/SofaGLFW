@@ -24,6 +24,8 @@
 #include <SofaGLFW/config.h>
 #include <SofaGLFW/BaseGUIEngine.h>
 
+namespace sofaglfw::render { class IRenderBackend; }
+
 namespace sofaglfw
 {
 
@@ -48,6 +50,7 @@ public:
 
 private:
     GLFWwindow* m_window{ nullptr };
+    render::IRenderBackend* m_backend{ nullptr };
     double m_lastTime{ 0.0 };
     double m_lastDisplayTime{ 0.0 };
     double m_avgFrameTime{ 0.0 };

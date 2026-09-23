@@ -25,6 +25,7 @@
 #include <SofaGLFW/render/IRenderBackend.h>
 #include <sofa/core/visual/VisualParams.h>
 #include <GLFW/glfw3.h>
+#include <sofa/helper/logging/Messaging.h>
 
 #include <sofa/helper/io/File.h>
 #include <sofa/helper/io/STBImage.h>
@@ -41,6 +42,9 @@ void NullGUIEngine::init()
 void NullGUIEngine::initBackend(GLFWwindow* window)
 {
     m_window = window;
+    // The window's user pointer is the GUI (set before the engine is initialized).
+    if (auto* gui = static_cast<SofaGLFWBaseGUI*>(glfwGetWindowUserPointer(window)))
+        m_backend = gui->getRenderBackend();
 }
 void NullGUIEngine::startFrame(SofaGLFWBaseGUI* baseGUI)
 {
@@ -76,9 +80,13 @@ void NullGUIEngine::endFrame()
 
 void NullGUIEngine::beforeDraw(GLFWwindow* window)
 {
-    int width, height;
-    glfwGetWindowSize(window, &width, &height);
-    sofa::core::visual::VisualParams::defaultInstance()->viewport() = {0, 0, width, height};
+    // The scene is drawn straight into the backbuffer, in the units its renderer expects.
+    sofa::type::Vec2i size;
+    if (m_backend)
+        size = m_backend->backbufferViewportSize(window);
+    else
+        glfwGetFramebufferSize(window, &size[0], &size[1]);
+    sofa::core::visual::VisualParams::defaultInstance()->viewport() = {0, 0, size[0], size[1]};
 }
 
 void NullGUIEngine::terminate()
@@ -98,17 +106,20 @@ void NullGUIEngine::resetCounter()
 
 sofa::type::Vec2i NullGUIEngine::getFrameBufferPixels(std::vector<uint8_t>& pixels)
 {
-    int width, height;
-    glfwGetFramebufferSize(m_window, &width, &height);
-    pixels.resize(width * height * 4, 0);
-    return {width, height};
+    // {0, 0} when the backend has no synchronous read-back: no frame is recorded.
+    if (!m_backend)
+    {
+        pixels.clear();
+        return {0, 0};
+    }
+    return m_backend->readBackbufferPixels(m_window, pixels);
 }
 
 void NullGUIEngine::saveNamedScreenshot(SofaGLFWBaseGUI* baseGUI, std::string filename, int compression_level)
 {
-    SOFA_UNUSED(compression_level);
-    if (baseGUI && baseGUI->getRenderBackend())
-        baseGUI->getRenderBackend()->requestBackbufferScreenshot(m_window, filename);
+    render::IRenderBackend* backend = baseGUI ? baseGUI->getRenderBackend() : m_backend;
+    if (!backend || !backend->requestBackbufferScreenshot(m_window, filename, compression_level))
+        msg_error("NullGUIEngine") << "Could not save the screenshot " << filename;
 }
 
 } // namespace sofaglfw

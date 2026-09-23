@@ -866,7 +866,7 @@ void SofaGLFWBaseGUI::key_callback(GLFWwindow* window, int key, int scancode, in
                 }
                 std::string filePath = baseName + ".png";
                 currentGUI->saveScreenshot(filePath);
-                msg_info("SofaGLFWBaseGUI") << "Screenshot saved to " << filePath;
+                msg_info("SofaGLFWBaseGUI") << "Saving a screenshot to " << filePath;
                 break;
             }
             // B: Switch background
