@@ -52,6 +52,8 @@ public:
     virtual ~SofaGLFWWindow();
 
     void draw(sofa::simulation::NodeSPtr groot, sofa::core::visual::VisualParams* vparams);
+    /// Release the scene renderer's GPU resources (the window stays open).
+    void releaseResources();
     void close();
 
     void mouseMoveEvent(int xpos, int ypos,SofaGLFWBaseGUI* gui);

@@ -70,6 +70,9 @@ public:
     void initVisual();
     std::size_t runLoop(std::size_t targetNbIterations = 0);
     void terminate();
+    /// Release the DrawTool and shut the rendering backend down (idempotent). Must run
+    /// while the windows still exist.
+    void shutdownRenderer();
 
     int getWindowWidth() const { return m_windowWidth; }
     void setWindowWidth(int width) { m_windowWidth = width; }

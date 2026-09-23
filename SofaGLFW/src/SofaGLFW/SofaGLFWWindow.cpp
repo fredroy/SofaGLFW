@@ -50,12 +50,17 @@ SofaGLFWWindow::SofaGLFWWindow(GLFWwindow* glfwWindow, component::visual::BaseCa
 
 SofaGLFWWindow::~SofaGLFWWindow() = default;
 
-void SofaGLFWWindow::close()
+void SofaGLFWWindow::releaseResources()
 {
-    glfwDestroyWindow(m_glfwWindow);
-
     if (m_sceneRenderer)
         m_sceneRenderer->releaseResources();
+}
+
+void SofaGLFWWindow::close()
+{
+    // GPU resources first: the window (and its GL context) must still exist.
+    releaseResources();
+    glfwDestroyWindow(m_glfwWindow);
 }
 
 void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams* vparams)
