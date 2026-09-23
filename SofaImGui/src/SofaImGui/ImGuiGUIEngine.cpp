@@ -183,7 +183,10 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
 {
     // Setup Platform/Renderer backends
     if (m_platform)
+    {
         m_platform->initBackend(glfwWindow);
+        m_backendInitialized = true;
+    }
 
     {
         int w, h;
@@ -969,28 +972,32 @@ void ImGuiGUIEngine::terminate()
 {
     if (!this->isTerminated())
     {
-        // store window state (position and size)
+        // store window state (position and size), when there was a window
         GLFWwindow* window = static_cast<GLFWwindow*>(ImGui::GetMainViewport()->PlatformHandle);
-        int winPosX = 0, winPosY = 0, winSizeX = 0, winSizeY = 0;
         if (window)
         {
+            int winPosX = 0, winPosY = 0, winSizeX = 0, winSizeY = 0;
             glfwGetWindowPos(window, &winPosX, &winPosY);
             glfwGetWindowSize(window, &winSizeX, &winSizeY);
-        }
 
-        // save latest window state
-        settings->ini.SetLongValue("Window", "windowPosX", static_cast<long>(winPosX));
-        settings->ini.SetLongValue("Window", "windowPosY", static_cast<long>(winPosY));
-        settings->ini.SetLongValue("Window", "windowSizeX", static_cast<long>(winSizeX));
-        settings->ini.SetLongValue("Window", "windowSizeY", static_cast<long>(winSizeY));
-        [[maybe_unused]] SI_Error rc = settings->ini.SaveFile(sofaimgui::AppIniFile::getAppIniFile().c_str());
+            // save latest window state
+            settings->ini.SetLongValue("Window", "windowPosX", static_cast<long>(winPosX));
+            settings->ini.SetLongValue("Window", "windowPosY", static_cast<long>(winPosY));
+            settings->ini.SetLongValue("Window", "windowSizeX", static_cast<long>(winSizeX));
+            settings->ini.SetLongValue("Window", "windowSizeY", static_cast<long>(winSizeY));
+            [[maybe_unused]] SI_Error rc = settings->ini.SaveFile(sofaimgui::AppIniFile::getAppIniFile().c_str());
+        }
 
         NFD_Quit();
 
-        if (m_platform)
+        // The GLFW and renderer backends exist only if a window was set up (the
+        // rendering backend may have failed to initialize).
+        if (m_backendInitialized)
+        {
             m_platform->shutdown();
-
-        ImGui_ImplGlfw_Shutdown();
+            ImGui_ImplGlfw_Shutdown();
+            m_backendInitialized = false;
+        }
         ImPlot::DestroyContext();
         ImGui::DestroyContext();
 

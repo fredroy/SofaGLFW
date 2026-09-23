@@ -151,19 +151,22 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     init.limits.maxTransientIbSize = 16u << 20;
     m_swapChain = init.swapChain;
 
-    const bool res = bgfx_init(&init);
+    m_initialized = bgfx_init(&init);
+    if (!m_initialized)
+    {
+        // bgfx has no context now: no bgfx call is valid.
+        msg_error("RenderBackendBGFX") << "Could not initialize bgfx"
+            << (m_type == BGFX_RENDERER_TYPE_COUNT ? std::string() : std::string(" with the ") + bgfx_get_renderer_name(m_type) + " renderer")
+            << " (native window handle " << init.swapChain.nwh << ").";
+        return false;
+    }
+
+    bgfxplugin::context::markInitialized();
+    msg_info("RenderBackendBGFX") << "bgfx renderer: " << bgfx_get_renderer_name(bgfx_get_renderer_type());
 
     bgfx_set_debug(m_debug, BGFX_INVALID_HANDLE, 0);
-
     bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
-
-    if (res)
-    {
-        bgfxplugin::context::markInitialized();
-        msg_info("RenderBackendBGFX") << "bgfx renderer: " << bgfx_get_renderer_name(bgfx_get_renderer_type());
-    }
-    m_initialized = res;
-    return res;
+    return true;
 }
 
 void RenderBackendBGFX::resize(uint32_t width, uint32_t height)

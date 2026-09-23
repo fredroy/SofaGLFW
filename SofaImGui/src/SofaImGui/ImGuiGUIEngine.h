@@ -125,6 +125,7 @@ protected:
     unsigned long m_screenshotCounter{0};
     std::string m_pendingScreenshotPath;
     bool m_isTerminated{ false };
+    bool m_backendInitialized{ false }; ///< initBackend() set up the platform (and ImGui's GLFW backend)
     std::size_t m_frameCount{0};
     uint32_t m_lastPresentedFrame{0};
 };

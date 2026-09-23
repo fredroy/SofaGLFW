@@ -338,7 +338,11 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
     {
         glfwWindow = glfwCreateWindow(width > 0 ? width : 100, height > 0 ? height : 100, title, nullptr, m_firstWindow);
     }
-    assert(glfwWindow);
+    if (!glfwWindow)
+    {
+        msg_error("SofaGLFWBaseGUI") << "Could not create the window.";
+        return false;
+    }
     s_numberOfActiveWindows++;
 
 #ifndef __APPLE__ // Apple implies Cocoa and Cocoa does not support icon for the window
@@ -384,7 +388,17 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
         m_backend->setMsaa(renderCfg.msaa);
         m_backend->setVsync(renderCfg.vsync);
 
-        m_backend->initEngine(glfwWindow, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+        if (!m_backend->initEngine(glfwWindow, static_cast<uint32_t>(width), static_cast<uint32_t>(height)))
+        {
+            msg_error("SofaGLFWBaseGUI") << "Could not initialize the " << render::toString(m_renderAPI)
+                                         << " rendering backend: no window is opened.";
+            s_mapGUIs.erase(glfwWindow);
+            if (m_firstWindow == glfwWindow)
+                m_firstWindow = nullptr;
+            s_numberOfActiveWindows--;
+            glfwDestroyWindow(glfwWindow);
+            return false;
+        }
 
         m_guiEngine->initBackend(glfwWindow);
 
