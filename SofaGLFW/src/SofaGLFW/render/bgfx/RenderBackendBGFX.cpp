@@ -255,11 +255,9 @@ void RenderBackendBGFX::applyReset()
     if (!m_initialized || !m_window)
         return;
     int w, h;
-    glfwGetWindowSize(m_window, &w, &h);
-    float xscale = 1.0f, yscale = 1.0f;
-    glfwGetWindowContentScale(m_window, &xscale, &yscale);
-    m_swapChain.width = static_cast<uint32_t>(w * xscale);
-    m_swapChain.height = static_cast<uint32_t>(h * yscale);
+    glfwGetFramebufferSize(m_window, &w, &h); // pixels, as initEngine
+    m_swapChain.width = static_cast<uint32_t>(w);
+    m_swapChain.height = static_cast<uint32_t>(h);
     m_swapChain.flags = m_reset & kSwapChainFlags;
     bgfx_reset(m_reset & ~kSwapChainFlags, &m_swapChain);
 }

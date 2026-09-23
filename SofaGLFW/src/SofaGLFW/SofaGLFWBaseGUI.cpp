@@ -1084,18 +1084,12 @@ void SofaGLFWBaseGUI::content_scale_callback(GLFWwindow *window, float xscale, f
 
 void SofaGLFWBaseGUI::framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
-    SOFA_UNUSED(width);
-    SOFA_UNUSED(height);
+    // width/height are framebuffer pixels on every platform. (Window size times
+    // content scale only equals them on macOS: on Windows and X11 the window size
+    // is already in pixels.)
     auto currentGUI = s_mapGUIs[window];
     if (currentGUI && currentGUI->m_backend)
-    {
-        int w, h;
-        glfwGetWindowSize(window, &w, &h);
-        float xscale = 1.0f, yscale = 1.0f;
-        glfwGetWindowContentScale(window, &xscale, &yscale);
-        currentGUI->m_backend->resize(static_cast<uint32_t>(w * xscale),
-                                      static_cast<uint32_t>(h * yscale));
-    }
+        currentGUI->m_backend->resize(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 }
 
 void SofaGLFWBaseGUI::setVsync(bool enabled)
