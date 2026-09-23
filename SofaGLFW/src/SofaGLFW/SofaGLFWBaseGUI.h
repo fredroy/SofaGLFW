@@ -77,6 +77,8 @@ public:
     void setWindowHeight(int height) { m_windowHeight = height; }
     void resizeWindow(int width, int height);
     bool centerWindow(GLFWwindow* window = nullptr);
+    /// Top-left corner of the 3D viewport in the window, in window coordinates (the
+    /// cursor positions of GLFW are relative to the same corner).
     void updateViewportPosition(float viewportPositionX, float viewportPositionY) ;
 
     GLFWmonitor* getCurrentMonitor(GLFWwindow *window);
@@ -164,7 +166,6 @@ private:
     static void cursor_enter_callback(GLFWwindow* window, int entered);
     static void monitor_callback(GLFWmonitor* monitor, int event);
     static void character_callback(GLFWwindow* window, unsigned int codepoint);
-    static void window_pos_callback(GLFWwindow* window, int xpos, int ypos);
     static int handleArrowKeys(int key);
     static void translateToViewportCoordinates (SofaGLFWBaseGUI* gui,double xpos, double ypos);
     static void content_scale_callback(GLFWwindow* window, float xscale, float yscale);
@@ -194,7 +195,6 @@ private:
     int m_viewPortWidth {0};
     Vec2d m_translatedCursorPos;
     Vec2f m_viewPortPosition;
-    Vec2f m_windowPosition;
     std::size_t m_backgroundID{0};
 
     std::shared_ptr<BaseGUIEngine> m_guiEngine;
