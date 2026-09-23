@@ -181,9 +181,11 @@ bool SofaGLFWBaseGUI::init(int nbMSAASamples)
         m_backend->configureVisualParams();
         m_backend->registerVisualModelAliases();
 
-        // A concrete video recorder is available only when a backend registers
-        // one (OpenGL). Otherwise recording is silently unavailable.
-        m_videoRecorder = render::createVideoRecorder();
+        // A concrete video recorder is registered by the OpenGL code (VideoRecorderGL),
+        // but it can only be fed by a backend reading its frames back synchronously:
+        // on bgfx, recording would start ffmpeg and never deliver a frame.
+        if (m_backend->supportsVideoCapture())
+            m_videoRecorder = render::createVideoRecorder();
 
         m_bGlfwIsInitialized = true;
         return true;
@@ -628,12 +630,9 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
 
                     m_guiEngine->afterDraw();
 
-                    m_guiEngine->startFrame(this);
-                    m_guiEngine->endFrame();
-
-                    m_viewPortHeight = m_vparams->viewport()[3];
-                    m_viewPortWidth = m_vparams->viewport()[2];
-
+                    // Capture the frame before startFrame() presents it: GL reads the
+                    // back buffer, which is undefined after the swap, and bgfx services
+                    // a screenshot request with the frame submitted after it.
                     // Read framebuffer for video recording (only supported by
                     // backends providing synchronous read-back; no-op otherwise)
                     if(this->groot->getAnimate() && this->m_bVideoRecording && m_videoRecorder)
@@ -647,6 +646,18 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     {
                         saveCurrentFrame();
                     }
+
+                    if (!m_pendingScreenshotPath.empty())
+                    {
+                        m_guiEngine->saveNamedScreenshot(this, m_pendingScreenshotPath, -1);
+                        m_pendingScreenshotPath.clear();
+                    }
+
+                    m_guiEngine->startFrame(this);
+                    m_guiEngine->endFrame();
+
+                    m_viewPortHeight = m_vparams->viewport()[3];
+                    m_viewPortWidth = m_vparams->viewport()[2];
                 }
                 else
                 {
@@ -991,7 +1002,7 @@ void SofaGLFWBaseGUI::key_callback(GLFWwindow* window, int key, int scancode, in
                 }
                 std::string filePath = baseName + ".png";
                 currentGUI->saveScreenshot(filePath);
-                msg_info("SofaGLFWBaseGUI") << "Screenshot saved to " << filePath;
+                msg_info("SofaGLFWBaseGUI") << "Saving a screenshot to " << filePath;
                 break;
             }
             // B: Switch background
@@ -1396,9 +1407,9 @@ bool SofaGLFWBaseGUI::centerWindow(GLFWwindow* window)
 
 void SofaGLFWBaseGUI::saveScreenshot(const std::string& filePath)
 {
-    // Delegate to the GUI engine's screenshot mechanism (backend-specific,
-    // handled by the ImGui platform). The Null engine defers to itself.
-    m_guiEngine->saveNamedScreenshot(this, filePath, -1);
+    // Taken by runLoop with the next frame, before it is presented, through the GUI
+    // engine's screenshot mechanism (backend-specific).
+    m_pendingScreenshotPath = filePath;
 }
 
 void SofaGLFWBaseGUI::toggleVideoRecording()

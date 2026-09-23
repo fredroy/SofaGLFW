@@ -41,7 +41,9 @@ public:
     void resize(uint32_t width, uint32_t height) override;
     uint32_t present(GLFWwindow* window) override;
     void terminate() override;
-    bool requestBackbufferScreenshot(GLFWwindow* window, const std::string& path) override;
+    bool requestBackbufferScreenshot(GLFWwindow* window, const std::string& path, int compressionLevel = -1) override;
+    sofa::type::Vec2i backbufferViewportSize(GLFWwindow* window) const override;
+    sofa::type::Vec2i readBackbufferPixels(GLFWwindow* window, std::vector<uint8_t>& pixels) override;
 
     std::unique_ptr<sofa::helper::visual::DrawTool> makeDrawTool() override;
     void configureVisualParams() override;
@@ -49,6 +51,8 @@ public:
 
     bool supportsMultiViewport() const override { return false; }
     bool needsGlfwContext() const override { return false; }
+    /// bgfx reads textures back asynchronously (a few frames later): not yet wired to video.
+    bool supportsVideoCapture() const override { return false; }
 
     void setVsync(bool enabled) override;
     bool isVsync() const override { return (m_reset & BGFX_RESET_VSYNC) != 0; }

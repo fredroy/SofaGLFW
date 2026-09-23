@@ -93,6 +93,24 @@ void ImGuiPlatformBGFX::renderDrawData(ImDrawData* drawData)
 
 void ImGuiPlatformBGFX::shutdown()
 {
+    // Complete the screenshots requested just before closing ("save, then quit"): a
+    // read-back writes into m_readbackData when bgfx next renders, at the latest in
+    // bgfx_shutdown, after this platform is destroyed. It takes a couple of frames.
+    if (bgfxplugin::context::isAlive())
+    {
+        for (int frame = 0; frame < 8 && (m_readbackPending || !m_screenshotQueue.empty()); ++frame)
+            pumpScreenshot(bgfx_frame(false));
+        if (!m_screenshotQueue.empty() || m_readbackPending)
+            msg_warning("ImGuiPlatformBGFX") << "Screenshots requested before closing were not saved.";
+    }
+    if (m_readbackPending)
+    {
+        // Still in flight: keep its buffer alive for bgfx to write into.
+        static std::vector<std::vector<uint8_t>> s_inFlightReadbacks;
+        s_inFlightReadbacks.push_back(std::move(m_readbackData));
+        m_readbackPending = false;
+    }
+
     // Normally runs before the backend shuts bgfx down; after that, the handles are gone.
     if (!bgfxplugin::context::isAlive())
     {
@@ -221,7 +239,7 @@ ImGuiDockNodeFlags ImGuiPlatformBGFX::dockspaceFlags() const
 
 void ImGuiPlatformBGFX::requestScreenshot(const std::string& path)
 {
-    m_pendingScreenshotPath = path;
+    m_screenshotQueue.push_back(path);
 }
 
 void ImGuiPlatformBGFX::pumpScreenshot(uint32_t presentedFrame)
@@ -229,8 +247,11 @@ void ImGuiPlatformBGFX::pumpScreenshot(uint32_t presentedFrame)
     m_lastPresentedFrame = presentedFrame;
 
     // Kick off a read-back once a screenshot is requested and none is in flight.
-    if (!m_pendingScreenshotPath.empty() && m_sceneFBTexture.idx != UINT16_MAX && !m_readbackPending)
+    if (!m_screenshotQueue.empty() && m_sceneFBTexture.idx != UINT16_MAX && !m_readbackPending)
     {
+        m_readbackPath = m_screenshotQueue.front();
+        m_screenshotQueue.pop_front();
+
         if (m_readbackTexture.idx == UINT16_MAX
             || m_readbackWidth != m_sceneFBWidth
             || m_readbackHeight != m_sceneFBHeight)
@@ -293,8 +314,8 @@ void ImGuiPlatformBGFX::processScreenshotReadback()
         memcpy(dst + row * pitch, src + srcRow * pitch, pitch);
     }
 
-    image.save(m_pendingScreenshotPath.c_str(), 90);
-    m_pendingScreenshotPath.clear();
+    image.save(m_readbackPath.c_str(), 90);
+    m_readbackPath.clear();
     m_readbackData.clear();
 }
 
