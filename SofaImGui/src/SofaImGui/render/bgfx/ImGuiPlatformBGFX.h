@@ -46,7 +46,8 @@ public:
     void beginSceneTarget(int width, int height, int msaa) override;
     void endSceneTarget() override;
     ImTextureID sceneTexture() const override;
-    bool sceneTextureFlippedV() const override { return false; }
+    /// Render targets start at the bottom left on OpenGL-like renderers.
+    bool sceneTextureFlippedV() const override;
 
     ImGuiDockNodeFlags dockspaceFlags() const override;
     bool supportsMultiViewport() const override { return false; }
