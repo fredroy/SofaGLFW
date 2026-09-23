@@ -132,8 +132,9 @@ void ImGuiPlatformGL::recreateFontsTexture()
     implRecreateFonts();
 }
 
-void ImGuiPlatformGL::beginSceneTarget(int width, int height)
+void ImGuiPlatformGL::beginSceneTarget(int width, int height, int msaa)
 {
+    SOFA_UNUSED(msaa); // the GL FBO is not multisampled (as on master)
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 

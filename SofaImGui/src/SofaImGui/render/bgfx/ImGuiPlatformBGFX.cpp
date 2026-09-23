@@ -119,7 +119,7 @@ void ImGuiPlatformBGFX::recreateFontsTexture()
     ImGui_Implbgfx_CreateFontsTexture();
 }
 
-void ImGuiPlatformBGFX::recreateSceneFB(uint16_t width, uint16_t height)
+void ImGuiPlatformBGFX::recreateSceneFB(uint16_t width, uint16_t height, int msaa)
 {
     if (m_sceneFB.idx != UINT16_MAX)
     {
@@ -145,11 +145,28 @@ void ImGuiPlatformBGFX::recreateSceneFB(uint16_t width, uint16_t height)
         }
     }
 
+    // Multisampling (the Settings' MSAA): the color target is resolved by bgfx before
+    // the viewport samples it. Only when both formats can be multisampled targets.
+    uint64_t rtFlag = BGFX_TEXTURE_RT;
+    const bool canMultisample = (caps->formats[BGFX_TEXTURE_FORMAT_RGBA8] & BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER_MSAA)
+                             && (caps->formats[depthFormat] & BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER_MSAA);
+    if (canMultisample)
+    {
+        switch (msaa)
+        {
+        case 2:  rtFlag = BGFX_TEXTURE_RT_MSAA_X2;  break;
+        case 4:  rtFlag = BGFX_TEXTURE_RT_MSAA_X4;  break;
+        case 8:  rtFlag = BGFX_TEXTURE_RT_MSAA_X8;  break;
+        case 16: rtFlag = BGFX_TEXTURE_RT_MSAA_X16; break;
+        default: break;
+        }
+    }
+
     bgfx_texture_handle_t textures[2];
     textures[0] = bgfx_create_texture_2d(width, height, false, 1,
-        BGFX_TEXTURE_FORMAT_RGBA8, BGFX_TEXTURE_RT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP, NULL, 0);
+        BGFX_TEXTURE_FORMAT_RGBA8, rtFlag | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP, NULL, 0);
     textures[1] = bgfx_create_texture_2d(width, height, false, 1,
-        depthFormat, BGFX_TEXTURE_RT_WRITE_ONLY, NULL, 0);
+        depthFormat, rtFlag | BGFX_TEXTURE_RT_WRITE_ONLY, NULL, 0);
 
     m_sceneFB = bgfx_create_frame_buffer_from_handles(2, textures, true);
     if (m_sceneFB.idx == UINT16_MAX)
@@ -158,9 +175,10 @@ void ImGuiPlatformBGFX::recreateSceneFB(uint16_t width, uint16_t height)
     m_sceneFBTexture = textures[0];
     m_sceneFBWidth = width;
     m_sceneFBHeight = height;
+    m_sceneFBMsaa = msaa;
 }
 
-void ImGuiPlatformBGFX::beginSceneTarget(int width, int height)
+void ImGuiPlatformBGFX::beginSceneTarget(int width, int height, int msaa)
 {
     // width/height are logical pixels; SceneRendererBGFX sets the scene view rect in
     // framebuffer pixels (times the window content scale), so the target must be
@@ -171,8 +189,8 @@ void ImGuiPlatformBGFX::beginSceneTarget(int width, int height)
     const uint16_t desiredW = static_cast<uint16_t>(std::max(1, static_cast<int>(std::max(1, width) * xscale)));
     const uint16_t desiredH = static_cast<uint16_t>(std::max(1, static_cast<int>(std::max(1, height) * yscale)));
 
-    if (desiredW != m_sceneFBWidth || desiredH != m_sceneFBHeight)
-        recreateSceneFB(desiredW, desiredH);
+    if (desiredW != m_sceneFBWidth || desiredH != m_sceneFBHeight || msaa != m_sceneFBMsaa)
+        recreateSceneFB(desiredW, desiredH, msaa);
 
     if (m_sceneFB.idx != UINT16_MAX)
     {
