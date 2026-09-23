@@ -147,7 +147,7 @@ bool ImGui_Implbgfx_CreateDeviceObjects()
     // SofaImGui/CMakeLists.txt) and loaded like the other SofaImGui shaders. Precompiled
     // embedded copies would be rejected as soon as bgfx changes its shader binary format.
     const bgfx_program_handle_t program = bgfxplugin::loadProgram(
-        "vs_ocornut_imgui", "fs_ocornut_imgui", std::string(SOFAIMGUI_RESOURCES_DIR) + "/shaders");
+        "vs_ocornut_imgui", "fs_ocornut_imgui", SOFAIMGUI_SHADERS_DIR);
     g_ShaderHandle.idx = program.idx;
 
     g_VertexLayout

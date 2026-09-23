@@ -1,0 +1,3 @@
+# Compiled bgfx shaders are generated in the build tree (see SofaImGui/CMakeLists.txt);
+# ignore stale outputs of older builds that wrote them into the sources.
+SofaImGui/resources/shaders/*/*.bin
