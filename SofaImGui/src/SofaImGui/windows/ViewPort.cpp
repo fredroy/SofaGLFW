@@ -95,7 +95,7 @@ namespace windows
                     lastViewPortPos.y() = viewportPos.y;
                 }
 
-                if (platform)
+                if (platform && platform->hasSceneTexture())
                 {
                     const ImTextureID sceneTex = platform->sceneTexture();
                     // Flip vertically for bottom-up textures (OpenGL FBO).
@@ -103,6 +103,13 @@ namespace windows
                     const ImVec2 uv0 = flip ? ImVec2(0, 1) : ImVec2(0, 0);
                     const ImVec2 uv1 = flip ? ImVec2(1, 0) : ImVec2(1, 1);
                     ImGui::Image(sceneTex, wsize, uv0, uv1);
+                    isMouseOnViewport = ImGui::IsItemHovered();
+                }
+                else if (platform)
+                {
+                    // No scene target (its creation failed, or not yet): an empty area,
+                    // not whatever texture the id 0 is.
+                    ImGui::Dummy(wsize);
                     isMouseOnViewport = ImGui::IsItemHovered();
                 }
 

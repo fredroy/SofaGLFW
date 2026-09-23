@@ -148,7 +148,8 @@ int main(int argc, char** argv)
     glfwGUI.setOffscreen(isOffscreen);
 
     // create a SofaGLFW window
-    glfwGUI.createWindow(resolution[0], resolution[1], "SofaGLFW", isFullScreen);
+    if (!glfwGUI.createWindow(resolution[0], resolution[1], "SofaGLFW", isFullScreen))
+        return EXIT_FAILURE;
 
     sofa::simulation::node::initRoot(groot.get());
 

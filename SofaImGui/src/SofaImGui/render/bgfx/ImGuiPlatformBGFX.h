@@ -49,6 +49,7 @@ public:
     void beginSceneTarget(int width, int height, int msaa) override;
     void endSceneTarget() override;
     ImTextureID sceneTexture() const override;
+    bool hasSceneTexture() const override { return m_sceneFBTexture.idx != UINT16_MAX; }
     /// Render targets start at the bottom left on OpenGL-like renderers.
     bool sceneTextureFlippedV() const override;
 
