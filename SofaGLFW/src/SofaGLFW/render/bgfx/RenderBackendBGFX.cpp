@@ -160,11 +160,7 @@ void RenderBackendBGFX::configureVisualParams()
 
 void RenderBackendBGFX::registerVisualModelAliases()
 {
-    // BGFXPlugin registers its components explicitly (no static registration):
-    // register them before pointing the aliases at BGFXModel. This deliberately does
-    // not go through the PluginManager, so scenes are not asked to <RequiredPlugin>
-    // a rendering backend chosen by the GUI.
-    bgfxplugin::registerObjects(sofa::core::ObjectFactory::getInstance());
+    bgfxplugin::registerComponents(sofa::core::ObjectFactory::getInstance());
 
     sofa::core::ObjectFactory::ClassEntry::SPtr classVisualModel;
     sofa::core::ObjectFactory::AddAlias("VisualModel", "BGFXModel", true, &classVisualModel);
