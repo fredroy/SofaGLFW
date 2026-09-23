@@ -119,7 +119,8 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     m_window = window;
 
     m_debug = BGFX_DEBUG_TEXT;
-    m_reset = BGFX_RESET_VSYNC | BGFX_RESET_HIDPI;
+    // Keep the vsync/MSAA flags set before init (the persisted preferences).
+    m_reset |= BGFX_RESET_HIDPI;
 
     bgfx_init_t init;
     bgfx_init_ctor(&init);
