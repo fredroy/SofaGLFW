@@ -57,10 +57,11 @@ public:
     /// initialized (e.g. bgfx bakes vsync into the Metal layer at init time, so
     /// applying it afterwards leaves the window display-synced for a while). The
     /// GUI engine that owns the settings (ImGui) overrides this to report the
-    /// persisted preference; the default enables vsync.
+    /// persisted preference. Vsync is off by default, as on master: the simulation
+    /// steps once per frame, so vsync would cap it at the display refresh rate.
     struct InitialRenderConfig
     {
-        bool vsync{true};
+        bool vsync{false};
         int  msaa{0};
     };
     virtual InitialRenderConfig getInitialRenderConfig() const { return {}; }
