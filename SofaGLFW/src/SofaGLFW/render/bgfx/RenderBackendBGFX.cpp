@@ -33,6 +33,7 @@
 #include <sofa/core/ObjectFactory.h>
 #include <sofa/core/visual/VisualParams.h>
 
+#include <BGFXPlugin/Context.h>
 #include <BGFXPlugin/DrawToolBGFX.h>
 #include <BGFXPlugin/init.h>
 
@@ -104,6 +105,8 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
 
     bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
 
+    if (res)
+        bgfxplugin::context::markInitialized();
     m_initialized = res;
     return res;
 }
@@ -129,12 +132,10 @@ void RenderBackendBGFX::terminate()
     if (!m_initialized)
         return;
 
-    // NOTE: we intentionally do NOT call bgfx_shutdown() here. The SOFA scene
-    // graph (groot) still owns BGFXModel components whose destructors call
-    // bgfx_destroy_*; those objects are destroyed AFTER this GUI teardown, so
-    // shutting bgfx down now would make them operate on a dead context and
-    // crash on quit. bgfx resources are reclaimed at process exit (this matches
-    // the behavior before the backend abstraction was introduced).
+    // The scene graph still owns BGFXModel components (and their textures), which
+    // are destroyed after the GUI: shutdown() makes every such owner free its bgfx
+    // handles first, so they are not destroyed later against a dead context.
+    bgfxplugin::context::shutdown();
     m_initialized = false;
 }
 

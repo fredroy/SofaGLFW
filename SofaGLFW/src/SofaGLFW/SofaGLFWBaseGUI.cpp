@@ -640,6 +640,12 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
             // could be not necessary if m_guiEngine already terminated but we may need it if GLFW closed itself. (typically escape key)
             m_guiEngine->terminate();
             m_guiEngine.reset();
+
+            // The renderer too, while its windows exist: bgfx presents its last
+            // frames to the window when it shuts down.
+            for (auto& [glfwWindow, sofaGlfwWindow] : closedWindows)
+                sofaGlfwWindow->releaseResources();
+            shutdownRenderer();
         }
 
         for (auto& [glfwWindow, sofaGlfwWindow] : closedWindows)
@@ -766,6 +772,13 @@ void SofaGLFWBaseGUI::terminate()
         m_bVideoRecording = false;
     }
 
+    shutdownRenderer();
+
+    glfwTerminate();
+}
+
+void SofaGLFWBaseGUI::shutdownRenderer()
+{
     // Release all backend GPU resources BEFORE shutting the engine down, so their
     // destructors (which free GPU programs/textures) still run against a live
     // context. The DrawTool holds bgfx programs and would otherwise crash in
@@ -776,9 +789,7 @@ void SofaGLFWBaseGUI::terminate()
     m_drawTool.reset();
 
     if (m_backend)
-        m_backend->terminate();
-
-    glfwTerminate();
+        m_backend->terminate(); // safe to call more than once
 }
 
 void SofaGLFWBaseGUI::error_callback(int error, const char* description)
