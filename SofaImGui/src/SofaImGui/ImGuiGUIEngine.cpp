@@ -237,7 +237,7 @@ sofaglfw::BaseGUIEngine::InitialRenderConfig ImGuiGUIEngine::getInitialRenderCon
     InitialRenderConfig cfg;
     if (settings)
     {
-        cfg.vsync = settings->ini.GetBoolValue("Rendering", "vsync", true);
+        cfg.vsync = settings->ini.GetBoolValue("Rendering", "vsync", false);
         cfg.msaa = static_cast<int>(settings->ini.GetLongValue("Rendering", "msaa", 0));
     }
     return cfg;
