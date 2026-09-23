@@ -72,12 +72,14 @@ using namespace core::objectmodel;
 
 namespace
 {
+    /// gluUnProject: @p modelview and @p projection are OpenGL (column-major) arrays,
+    /// as VisualParams stores them.
     template<class Real>
     bool glhUnProjectf(Real winx, Real winy, Real winz, Real* modelview, Real* projection, const core::visual::VisualParams::Viewport& viewport, Real* objectCoordinate)
     {
-        //Transformation matrices
-        sofa::type::Mat<4, 4, Real> matModelview(modelview);
-        sofa::type::Mat<4, 4, Real> matProjection(projection);
+        // sofa::type::Mat reads an array row by row: transpose the column-major ones.
+        const sofa::type::Mat<4, 4, Real> matModelview = sofa::type::Mat<4, 4, Real>(modelview).transposed();
+        const sofa::type::Mat<4, 4, Real> matProjection = sofa::type::Mat<4, 4, Real>(projection).transposed();
 
         sofa::type::Mat<4, 4, Real> m, A;
         sofa::type::Vec<4, Real> in, out;
