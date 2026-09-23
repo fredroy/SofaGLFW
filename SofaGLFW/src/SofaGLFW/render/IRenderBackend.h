@@ -102,6 +102,10 @@ public:
     /// by GLFW; false if the backend manages the surface itself (bgfx).
     virtual bool needsGlfwContext() const = 0;
 
+    /// True if the frames of this backend can be read back synchronously, as video
+    /// recording needs (IVideoRecorder receives one frame per rendered frame).
+    virtual bool supportsVideoCapture() const = 0;
+
     // --- runtime knobs ------------------------------------------------------
 
     virtual void setVsync(bool enabled) = 0;
