@@ -231,8 +231,9 @@ if(SOFAIMGUI_USE_BGFX)
 
     if(APPLE)
         set(SOFAIMGUI_SHADER_PLATFORM "osx")
-        set(SOFAIMGUI_SHADER_PROFILES metal 330)
-        set(SOFAIMGUI_SHADER_PROFILE_DIRS metal glsl)
+        # spirv: for bgfx's Vulkan renderer through MoltenVK (SOFA_BGFX_RENDERER=vulkan).
+        set(SOFAIMGUI_SHADER_PROFILES metal spirv 330)
+        set(SOFAIMGUI_SHADER_PROFILE_DIRS metal spirv glsl)
     elseif(WIN32)
         set(SOFAIMGUI_SHADER_PLATFORM "windows")
         set(SOFAIMGUI_SHADER_PROFILES s_5_0 spirv 330)
@@ -276,6 +277,12 @@ if(SOFAIMGUI_USE_BGFX)
             list(GET SOFAIMGUI_SHADER_PROFILE_DIRS ${PIDX} PROFILE_DIR)
 
             set(OUTPUT_FILE "${SOFAIMGUI_SHADER_OUTPUT_DIR}/${PROFILE_DIR}/${SHADER_NAME}.bin")
+            # SPIR-V is compiled as for Linux on every platform (like bgfx's own tools):
+            # with --platform osx, shaderc takes Metal code paths and rejects it.
+            set(PROFILE_PLATFORM ${SOFAIMGUI_SHADER_PLATFORM})
+            if(PROFILE STREQUAL "spirv")
+                set(PROFILE_PLATFORM "linux")
+            endif()
 
             add_custom_command(
                 OUTPUT "${OUTPUT_FILE}"
@@ -284,7 +291,7 @@ if(SOFAIMGUI_USE_BGFX)
                     -f "${SOFAIMGUI_SHADER_SRC_DIR}/${SHADER_NAME}.sc"
                     -o "${OUTPUT_FILE}"
                     --type ${SHADER_TYPE_LOWER}
-                    --platform ${SOFAIMGUI_SHADER_PLATFORM}
+                    --platform ${PROFILE_PLATFORM}
                     --profile ${PROFILE}
                     --varyingdef "${SOFAIMGUI_SHADER_SRC_DIR}/${VARYING_FILE}"
                     -i "${BGFX_SHADER_INCLUDE_PATH}"
