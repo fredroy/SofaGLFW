@@ -59,10 +59,6 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
                                   const ViewportRect& viewport,
                                   const sofa::type::RGBAColor& background)
 {
-    constexpr uint16_t kViewBackground = 0;
-    constexpr uint16_t kViewScene = 1;
-    // Transparent models: same target as the scene, drawn after it, sorted far to near.
-    constexpr uint16_t kViewTransparent = 2;
 
     // ImGui viewport rect is in logical pixels; bgfx needs framebuffer pixels
     float xscale = 1.0f, yscale = 1.0f;
@@ -170,6 +166,9 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         bool isOrtho = (camera->getCameraType() == sofa::core::visual::VisualParams::ORTHOGRAPHIC_TYPE);
         drawTool->setScreenParams(static_cast<float>(width), static_cast<float>(height), projY5, isOrtho);
         drawTool->setFramebufferSize(static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight), yscale);
+        drawTool->setViewportOrigin(vpX, vpY);
+        drawTool->setBackgroundColor(background);
+        drawTool->setOverlayViews(kFirstOverlayView, kOverlayViewCount);
     }
 
     sofa::simulation::node::draw(vparams, groot);

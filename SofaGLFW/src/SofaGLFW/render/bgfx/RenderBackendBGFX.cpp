@@ -220,6 +220,16 @@ void RenderBackendBGFX::registerVisualModelAliases()
     sofa::core::ObjectFactory::ClassEntry::SPtr classVisualModel;
     sofa::core::ObjectFactory::AddAlias("VisualModel", "BGFXModel", true, &classVisualModel);
     sofa::core::ObjectFactory::AddAlias("OglModel", "BGFXModel", true, &classVisualModel);
+
+    // The bgfx counterparts of Sofa.GL components, under their GL names.
+    for (const auto& [glName, bgfxName] : { std::pair{ "OglLabel", "BGFXLabel" },
+                                            std::pair{ "OglSceneFrame", "BGFXSceneFrame" },
+                                            std::pair{ "OglColorMap", "BGFXColorMap" },
+                                            std::pair{ "DataDisplay", "BGFXDataDisplay" } })
+    {
+        sofa::core::ObjectFactory::ClassEntry::SPtr entry;
+        sofa::core::ObjectFactory::AddAlias(glName, bgfxName, true, &entry);
+    }
 }
 
 void RenderBackendBGFX::applyReset()
