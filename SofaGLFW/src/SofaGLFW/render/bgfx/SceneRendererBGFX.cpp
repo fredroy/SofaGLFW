@@ -90,7 +90,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     bgfx_set_view_rect(kViewBackground, 0, 0, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewBackground, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, clearColor, 1.0f, 0);
 
-    if (!drawBackgroundImage(0, 0, width, height, fbWidth, fbHeight))
+    if (!drawBackgroundImage(0, 0, width, height, fbWidth, fbHeight, xscale, yscale))
         bgfx_touch(kViewBackground);
 
     // draw the scene
@@ -168,7 +168,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         drawTool->setCameraPosition(camera->getPosition());
         bool isOrtho = (camera->getCameraType() == sofa::core::visual::VisualParams::ORTHOGRAPHIC_TYPE);
         drawTool->setScreenParams(static_cast<float>(width), static_cast<float>(height), projY5, isOrtho);
-        drawTool->setFramebufferSize(static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight), 1.0f);
+        drawTool->setFramebufferSize(static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight), yscale);
     }
 
     sofa::simulation::node::draw(vparams, groot);
@@ -215,7 +215,8 @@ void SceneRendererBGFX::clearBackgroundImage()
     m_currentBackgroundFilename.clear();
 }
 
-bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH, int fbW, int fbH)
+bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH, int fbW, int fbH,
+                                            float xscale, float yscale)
 {
     if (m_currentBackgroundFilename.empty())
         return false;
@@ -257,8 +258,9 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
         const float texH = static_cast<float>(img->getHeight());
         if (texW > 0.0f && texH > 0.0f)
         {
-            uMax = static_cast<float>(vpW) / texW;
-            vMax = static_cast<float>(vpH) / texH;
+            // One texel per logical pixel, like the GL backend, whatever the content scale.
+            uMax = static_cast<float>(vpW) / (texW * xscale);
+            vMax = static_cast<float>(vpH) / (texH * yscale);
         }
     }
 
