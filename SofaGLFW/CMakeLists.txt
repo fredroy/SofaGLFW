@@ -135,7 +135,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 if(BGFXPlugin_FOUND)
     message("${PROJECT_NAME}: BGFXPlugin (bgfx) rendering backend enabled.")
     target_link_libraries(${PROJECT_NAME} PUBLIC BGFXPlugin)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../SofaImGui/resources")
+    # vs/fs_imgui (background image) are compiled by the sibling SofaImGui project,
+    # into its build tree.
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_SHADERS_DIR="${CMAKE_CURRENT_BINARY_DIR}/../SofaImGui/shaders")
 endif()
 
 if(Sofa.GL_FOUND)

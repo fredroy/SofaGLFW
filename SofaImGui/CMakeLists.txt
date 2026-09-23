@@ -223,7 +223,10 @@ if(SOFAIMGUI_USE_BGFX)
 
     # Shader compilation
     set(SOFAIMGUI_SHADER_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/src")
-    set(SOFAIMGUI_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders")
+    # Compiled shaders are build products (they depend on the pinned bgfx's shaderc):
+    # they go to the build tree and are not versioned. SofaGLFW's bgfx backend loads
+    # vs/fs_imgui from here too (see SofaGLFW/CMakeLists.txt).
+    set(SOFAIMGUI_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
     set(BGFX_SHADER_INCLUDE_PATH "${bgfx_SOURCE_DIR}/bgfx/src")
 
     if(APPLE)
@@ -300,8 +303,7 @@ if(SOFAIMGUI_USE_BGFX)
     add_dependencies(${PROJECT_NAME}_shaders shaderc)
     add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_shaders)
 
-    set(SOFAIMGUI_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_RESOURCES_DIR="${SOFAIMGUI_RESOURCES_DIR}")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_SHADERS_DIR="${SOFAIMGUI_SHADER_OUTPUT_DIR}")
 endif()
 
 # setup the same API exports for imgui
