@@ -79,12 +79,14 @@ using namespace core::objectmodel;
 
 namespace
 {
+    /// gluUnProject: @p modelview and @p projection are OpenGL (column-major) arrays,
+    /// as VisualParams stores them.
     template<class Real>
     bool glhUnProjectf(Real winx, Real winy, Real winz, Real* modelview, Real* projection, const core::visual::VisualParams::Viewport& viewport, Real* objectCoordinate)
     {
-        //Transformation matrices
-        sofa::type::Mat<4, 4, Real> matModelview(modelview);
-        sofa::type::Mat<4, 4, Real> matProjection(projection);
+        // sofa::type::Mat reads an array row by row: transpose the column-major ones.
+        const sofa::type::Mat<4, 4, Real> matModelview = sofa::type::Mat<4, 4, Real>(modelview).transposed();
+        const sofa::type::Mat<4, 4, Real> matProjection = sofa::type::Mat<4, 4, Real>(projection).transposed();
 
         sofa::type::Mat<4, 4, Real> m, A;
         sofa::type::Vec<4, Real> in, out;
@@ -387,7 +389,6 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
         glfwSetMouseButtonCallback(glfwWindow, mouse_button_callback);
         glfwSetScrollCallback(glfwWindow, scroll_callback);
         glfwSetWindowCloseCallback(glfwWindow, close_callback);
-        glfwSetWindowPosCallback(glfwWindow, window_pos_callback);
         // this set empty callbacks
         // solve a crash when glfw is quitting and tries to use nullptr callbacks
         // could be potentially useful in the future anyway
@@ -1128,13 +1129,6 @@ void SofaGLFWBaseGUI::moveRayPickInteractor(int eventX, int eventY)
     getPickHandler()->updateRay(position, direction);
 }
 
-void SofaGLFWBaseGUI::window_pos_callback(GLFWwindow* window, int xpos, int ypos)
-{
-    SofaGLFWBaseGUI* gui = static_cast<SofaGLFWBaseGUI*>(glfwGetWindowUserPointer(window));
-    gui->m_windowPosition[0] = static_cast<float>(xpos);
-    gui->m_windowPosition[1] = static_cast<float>(ypos);
-}
-
 void SofaGLFWBaseGUI::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
     auto currentGUI = s_mapGUIs.find(window);
@@ -1192,7 +1186,7 @@ void SofaGLFWBaseGUI::mouse_button_callback(GLFWwindow* window, int button, int 
 
 void SofaGLFWBaseGUI::translateToViewportCoordinates (SofaGLFWBaseGUI* gui,double xpos, double ypos)
 {
-    gui->m_translatedCursorPos = Vec2d{xpos, ypos} - (gui->m_viewPortPosition - gui->m_windowPosition);
+    gui->m_translatedCursorPos = Vec2d{xpos, ypos} - gui->m_viewPortPosition;
 }
 
 void SofaGLFWBaseGUI::content_scale_callback(GLFWwindow *window, float xscale, float yscale)

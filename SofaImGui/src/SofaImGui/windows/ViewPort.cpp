@@ -71,7 +71,15 @@ namespace windows
                 ImVec2 wsize = ImGui::GetWindowSize();
                 m_viewportWindowSize = { wsize.x, wsize.y};
 
+                // Position in the main window: with multi-viewport, ImGui positions are
+                // desktop coordinates; without it (bgfx), they already are window-relative.
                 ImVec2 viewportPos = ImGui::GetWindowPos();
+                if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+                {
+                    const ImVec2 windowPos = ImGui::GetMainViewport()->Pos;
+                    viewportPos.x -= windowPos.x;
+                    viewportPos.y -= windowPos.y;
+                }
 
                 if (isViewportDisplayedForTheFirstTime)
                 {
