@@ -46,6 +46,21 @@ using namespace sofa;
 namespace sofaglfw::render
 {
 
+void SceneRendererBGFX::framebufferScale(GLFWwindow* window, float& xscale, float& yscale)
+{
+    xscale = yscale = 1.0f;
+    if (!window)
+        return;
+    int windowW = 0, windowH = 0, fbW = 0, fbH = 0;
+    glfwGetWindowSize(window, &windowW, &windowH);
+    glfwGetFramebufferSize(window, &fbW, &fbH);
+    if (windowW > 0 && windowH > 0 && fbW > 0 && fbH > 0) // minimized: keep 1
+    {
+        xscale = float(fbW) / float(windowW);
+        yscale = float(fbH) / float(windowH);
+    }
+}
+
 SceneRendererBGFX::~SceneRendererBGFX()
 {
     if (bgfxplugin::context::isAlive())
@@ -60,9 +75,9 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
                                   const sofa::type::RGBAColor& background)
 {
 
-    // ImGui viewport rect is in logical pixels; bgfx needs framebuffer pixels
+    // ImGui viewport rect is in window units; bgfx needs framebuffer pixels
     float xscale = 1.0f, yscale = 1.0f;
-    glfwGetWindowContentScale(glfwWindow, &xscale, &yscale);
+    framebufferScale(glfwWindow, xscale, yscale);
 
     const uint16_t vpX = static_cast<uint16_t>(viewport.x * xscale);
     const uint16_t vpY = static_cast<uint16_t>(viewport.y * yscale);
