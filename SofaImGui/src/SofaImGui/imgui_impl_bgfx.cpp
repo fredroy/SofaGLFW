@@ -17,6 +17,9 @@
 static bgfx_texture_handle_t g_FontTexture = BGFX_INVALID_HANDLE;
 static bgfx_program_handle_t g_ShaderHandle = BGFX_INVALID_HANDLE;
 static bgfx_uniform_handle_t g_AttribLocationTex = BGFX_INVALID_HANDLE;
+// The device objects were created for this context (whether the program loaded or not):
+// a missing shader is reported once, not retried every frame.
+static bool g_DeviceObjectsCreated = false;
 static bgfx_vertex_layout_t  g_VertexLayout;
 static uint8_t g_View = 255;
 
@@ -24,8 +27,8 @@ void ImGui_Implbgfx_RenderDrawLists(ImDrawData* draw_data)
 {
     const int fb_width  = static_cast<int>(draw_data->DisplaySize.x * draw_data->FramebufferScale.x);
     const int fb_height = static_cast<int>(draw_data->DisplaySize.y * draw_data->FramebufferScale.y);
-    if (fb_width <= 0 || fb_height <= 0)
-        return;
+    if (fb_width <= 0 || fb_height <= 0 || !BGFX_HANDLE_IS_VALID(g_ShaderHandle))
+        return; // (the program failed to load: reported once by CreateDeviceObjects)
 
     const bgfx_caps_t* caps = bgfx_get_caps();
 
@@ -161,7 +164,9 @@ bool ImGui_Implbgfx_CreateDeviceObjects()
     bgfx_vertex_layout_add(&g_VertexLayout, BGFX_ATTRIB_COLOR0, 4, BGFX_ATTRIB_TYPE_UINT8, true, false);
     bgfx_vertex_layout_end(&g_VertexLayout);
 
-    g_AttribLocationTex = bgfx_create_uniform("s_tex", BGFX_UNIFORM_TYPE_SAMPLER, 1);
+    if (!BGFX_HANDLE_IS_VALID(g_AttribLocationTex))
+        g_AttribLocationTex = bgfx_create_uniform("s_tex", BGFX_UNIFORM_TYPE_SAMPLER, 1);
+    g_DeviceObjectsCreated = true;
 
     if (!BGFX_HANDLE_IS_VALID(g_FontTexture))
         ImGui_Implbgfx_CreateFontsTexture();
@@ -184,6 +189,7 @@ void ImGui_Implbgfx_InvalidateDeviceObjects()
         bgfx_destroy_uniform(g_AttribLocationTex);
         g_AttribLocationTex.idx = UINT16_MAX;
     }
+    g_DeviceObjectsCreated = false;
 }
 
 void ImGui_Implbgfx_Init(const int view)
@@ -202,7 +208,7 @@ void ImGui_Implbgfx_Shutdown()
 
 void ImGui_Implbgfx_NewFrame()
 {
-    if (!BGFX_HANDLE_IS_VALID(g_ShaderHandle))
+    if (!g_DeviceObjectsCreated)
     {
         ImGui_Implbgfx_CreateDeviceObjects();
     }
