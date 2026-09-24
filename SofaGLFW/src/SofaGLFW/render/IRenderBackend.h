@@ -95,9 +95,6 @@ public:
 
     // --- capabilities -------------------------------------------------------
 
-    /// True if ImGui multi-viewport (ImGuiConfigFlags_ViewportsEnable) is usable.
-    virtual bool supportsMultiViewport() const = 0;
-
     /// GLFW client-API hint: true if the window needs an OpenGL context created
     /// by GLFW; false if the backend manages the surface itself (bgfx).
     virtual bool needsGlfwContext() const = 0;

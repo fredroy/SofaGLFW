@@ -24,7 +24,7 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#include <bgfx/bgfx.h>
+#include <bgfx/c99/bgfx.h>
 #include <bx/math.h>
 #include <BGFXPlugin/DrawToolBGFX.h>
 #include <BGFXPlugin/BGFXShaderUtils.h>
@@ -150,7 +150,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         }
 
         // OpenGL projection maps depth to [-1,1]; remap to [0,1] for non-GL backends (Metal/D3D)
-        if (!bgfx::getCaps()->homogeneousDepth)
+        if (!bgfx_get_caps()->homogeneousDepth)
         {
             proj[2]  = proj[2]  * 0.5f + proj[3]  * 0.5f;
             proj[6]  = proj[6]  * 0.5f + proj[7]  * 0.5f;
@@ -309,7 +309,7 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
     float view[16];
     bx::mtxIdentity(view);
     float proj[16];
-    const bool homogeneousDepth = bgfx::getCaps()->homogeneousDepth;
+    const bool homogeneousDepth = bgfx_get_caps()->homogeneousDepth;
     bx::mtxOrtho(proj, 0.0f, static_cast<float>(fbW), static_cast<float>(fbH), 0.0f, 0.0f, 1.0f, 0.0f, homogeneousDepth);
     bgfx_set_view_transform(0, view, proj);
 

@@ -92,8 +92,6 @@ protected:
 
     std::pair<float, float> m_viewportWindowSize;
     int m_sceneMsaa{0}; ///< MSAA samples of the offscreen scene target (backend setting)
-    std::array<int, 4> m_viewportRect {}; // x, y, w, h in framebuffer pixels for bgfx rendering
-    std::array<int, 4> m_viewportScreenRect {}; // x, y, w, h in screen pixels for overlay positioning
     bool isMouseOnViewport { false };
 
     struct Settings;
@@ -134,11 +132,8 @@ protected:
     bool m_imguiNeedViewReset;
     std::string m_localeBackup;
     unsigned long m_screenshotCounter{0};
-    std::string m_pendingScreenshotPath;
     bool m_isTerminated{ false };
     bool m_backendInitialized{ false }; ///< initBackend() set up the platform (and ImGui's GLFW backend)
-    std::size_t m_frameCount{0};
-    uint32_t m_lastPresentedFrame{0};
 };
 
 } // namespace sofaimgui

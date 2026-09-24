@@ -80,7 +80,6 @@ private:
     /// (m_readbackPath), and a request made meanwhile waits for it.
     std::deque<std::string> m_screenshotQueue;
     std::string m_readbackPath;
-    uint32_t m_lastPresentedFrame{0};
     GLFWwindow* m_window{nullptr};
 };
 

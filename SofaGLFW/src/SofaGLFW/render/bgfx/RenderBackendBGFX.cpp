@@ -35,7 +35,6 @@
 #include <cstdlib>
 #include <string>
 
-#include <bgfx/bgfx.h>
 
 #include <sofa/core/ObjectFactory.h>
 #include <sofa/core/visual/VisualParams.h>
@@ -118,9 +117,6 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
 
     m_window = window;
 
-    m_debug = BGFX_DEBUG_TEXT;
-    // Keep the vsync/MSAA flags set before init (the persisted preferences).
-    m_reset |= BGFX_RESET_HIDPI;
 
     bgfx_init_t init;
     bgfx_init_ctor(&init);
@@ -171,7 +167,7 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     bgfxplugin::context::markInitialized();
     msg_info("RenderBackendBGFX") << "bgfx renderer: " << bgfx_get_renderer_name(bgfx_get_renderer_type());
 
-    bgfx_set_debug(m_debug, BGFX_INVALID_HANDLE, 0);
+    bgfx_set_debug(BGFX_DEBUG_TEXT, BGFX_INVALID_HANDLE, 0);
     bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
     return true;
 }
