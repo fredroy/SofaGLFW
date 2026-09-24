@@ -4,9 +4,19 @@
 @PACKAGE_INIT@
 
 find_package(Sofa.Config QUIET REQUIRED)
-find_package(Sofa.Simulation.Graph QUIET REQUIRED)
-find_package(Sofa.GL QUIET REQUIRED)
+find_package(Sofa.Simulation.Common QUIET REQUIRED)
 find_package(Sofa.Component.Visual QUIET REQUIRED)
+find_package(Sofa.Component.Setting QUIET REQUIRED)
+
+# The rendering backends this SofaGLFW was built with (at least one of them).
+set(SOFAGLFW_HAVE_BGFXPLUGIN @SOFAGLFW_HAVE_BGFXPLUGIN@)
+if(SOFAGLFW_HAVE_BGFXPLUGIN)
+    find_package(BGFXPlugin QUIET REQUIRED)
+endif()
+set(SOFAGLFW_HAVE_SOFA_GL @SOFAGLFW_HAVE_SOFA_GL@)
+if(SOFAGLFW_HAVE_SOFA_GL)
+    find_package(Sofa.GL QUIET REQUIRED)
+endif()
 
 if(NOT TARGET glfw)
     sofa_find_package(glfw3 QUIET REQUIRED)
