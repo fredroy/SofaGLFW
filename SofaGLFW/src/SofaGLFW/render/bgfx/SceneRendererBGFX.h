@@ -38,7 +38,7 @@ namespace sofaglfw::render
 /// quad), the scene, its transparent models and DrawToolBGFX's overlays in their own
 /// views (below), with the camera matrices and the depth-range remap of non-GL
 /// renderers.
-class SceneRendererBGFX : public ISceneRenderer, public bgfxplugin::GpuResourceOwner
+class SOFAGLFW_API SceneRendererBGFX : public ISceneRenderer, public bgfxplugin::GpuResourceOwner
 {
 public:
     /// bgfx views of the scene, all rendered into the scene target, in this order:
