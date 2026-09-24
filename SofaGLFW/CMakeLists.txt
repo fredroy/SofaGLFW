@@ -135,9 +135,18 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 if(BGFXPlugin_FOUND)
     message("${PROJECT_NAME}: BGFXPlugin (bgfx) rendering backend enabled.")
     target_link_libraries(${PROJECT_NAME} PUBLIC BGFXPlugin)
-    # vs/fs_imgui (background image) are compiled by the sibling SofaImGui project,
-    # into its build tree.
-    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_SHADERS_DIR="${CMAKE_CURRENT_BINARY_DIR}/../SofaImGui/shaders")
+    # The background image shaders, compiled with BGFXPlugin's shaderc. The build
+    # tree's copy is used until they are installed (SceneRendererBGFX::drawBackground).
+    set(SOFAGLFW_SHADERS_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+    bgfxplugin_add_shaders(${PROJECT_NAME}
+        SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/src"
+        OUTPUT_DIR "${SOFAGLFW_SHADERS_DIR}"
+        INSTALL_DIR "share/sofa/${PROJECT_NAME}/shaders"
+        SHADERS
+            vs_imgui VERTEX varying_imgui.def.sc
+            fs_imgui FRAGMENT varying_imgui.def.sc
+    )
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAGLFW_SHADERS_DIR="${SOFAGLFW_SHADERS_DIR}")
 endif()
 
 if(Sofa.GL_FOUND)

@@ -221,94 +221,20 @@ endif()
 if(SOFAIMGUI_USE_BGFX)
     target_link_libraries(${PROJECT_NAME} PUBLIC BGFXPlugin)
 
-    # Shader compilation
-    set(SOFAIMGUI_SHADER_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/src")
-    # Compiled shaders are build products (they depend on the pinned bgfx's shaderc):
-    # they go to the build tree and are not versioned. SofaGLFW's bgfx backend loads
-    # vs/fs_imgui from here too (see SofaGLFW/CMakeLists.txt).
+    # The ImGui draw shaders are compiled and loaded at runtime: bgfx rejects shader
+    # binaries whose format does not match the runtime, so they must be produced by
+    # the shaderc of the bgfx BGFXPlugin is built with (bgfxplugin_add_shaders) rather
+    # than committed as precompiled C arrays. Compiled shaders are build products:
+    # they go to the build tree, are installed, and are not versioned.
     set(SOFAIMGUI_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
-    set(BGFX_SHADER_INCLUDE_PATH "${bgfx_SOURCE_DIR}/bgfx/src")
-
-    if(APPLE)
-        set(SOFAIMGUI_SHADER_PLATFORM "osx")
-        # spirv: for bgfx's Vulkan renderer through MoltenVK (SOFA_BGFX_RENDERER=vulkan).
-        set(SOFAIMGUI_SHADER_PROFILES metal spirv 330)
-        set(SOFAIMGUI_SHADER_PROFILE_DIRS metal spirv glsl)
-    elseif(WIN32)
-        set(SOFAIMGUI_SHADER_PLATFORM "windows")
-        set(SOFAIMGUI_SHADER_PROFILES s_5_0 spirv 330)
-        set(SOFAIMGUI_SHADER_PROFILE_DIRS dxbc spirv glsl)
-    elseif(UNIX)
-        set(SOFAIMGUI_SHADER_PLATFORM "linux")
-        set(SOFAIMGUI_SHADER_PROFILES spirv 330)
-        set(SOFAIMGUI_SHADER_PROFILE_DIRS spirv glsl)
-    endif()
-
-    # The ImGui draw shaders (vs/fs_ocornut_imgui) are compiled here as well and loaded
-    # at runtime: bgfx rejects shader binaries whose format does not match the runtime,
-    # so they must be produced by the shaderc that ships with the pinned bgfx rather
-    # than committed as precompiled C arrays.
-    set(SOFAIMGUI_SHADER_SOURCES
-        vs_imgui VERTEX varying_imgui.def.sc
-        fs_imgui FRAGMENT varying_imgui.def.sc
-        vs_ocornut_imgui VERTEX varying_ocornut_imgui.def.sc
-        fs_ocornut_imgui FRAGMENT varying_ocornut_imgui.def.sc
+    bgfxplugin_add_shaders(${PROJECT_NAME}
+        SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/src"
+        OUTPUT_DIR "${SOFAIMGUI_SHADER_OUTPUT_DIR}"
+        INSTALL_DIR "share/sofa/${PROJECT_NAME}/shaders"
+        SHADERS
+            vs_ocornut_imgui VERTEX varying_ocornut_imgui.def.sc
+            fs_ocornut_imgui FRAGMENT varying_ocornut_imgui.def.sc
     )
-
-    set(SOFAIMGUI_ALL_SHADER_OUTPUTS "")
-
-    list(LENGTH SOFAIMGUI_SHADER_SOURCES SOFAIMGUI_SHADER_SOURCES_LEN)
-    math(EXPR SOFAIMGUI_SHADER_SOURCES_LAST "${SOFAIMGUI_SHADER_SOURCES_LEN} - 1")
-
-    foreach(IDX RANGE 0 ${SOFAIMGUI_SHADER_SOURCES_LAST} 3)
-        math(EXPR TYPE_IDX "${IDX} + 1")
-        math(EXPR VARYING_IDX "${IDX} + 2")
-        list(GET SOFAIMGUI_SHADER_SOURCES ${IDX} SHADER_NAME)
-        list(GET SOFAIMGUI_SHADER_SOURCES ${TYPE_IDX} SHADER_TYPE)
-        list(GET SOFAIMGUI_SHADER_SOURCES ${VARYING_IDX} VARYING_FILE)
-
-        string(TOLOWER ${SHADER_TYPE} SHADER_TYPE_LOWER)
-
-        list(LENGTH SOFAIMGUI_SHADER_PROFILES PROFILE_COUNT)
-        math(EXPR PROFILE_LAST "${PROFILE_COUNT} - 1")
-
-        foreach(PIDX RANGE 0 ${PROFILE_LAST})
-            list(GET SOFAIMGUI_SHADER_PROFILES ${PIDX} PROFILE)
-            list(GET SOFAIMGUI_SHADER_PROFILE_DIRS ${PIDX} PROFILE_DIR)
-
-            set(OUTPUT_FILE "${SOFAIMGUI_SHADER_OUTPUT_DIR}/${PROFILE_DIR}/${SHADER_NAME}.bin")
-            # SPIR-V is compiled as for Linux on every platform (like bgfx's own tools):
-            # with --platform osx, shaderc takes Metal code paths and rejects it.
-            set(PROFILE_PLATFORM ${SOFAIMGUI_SHADER_PLATFORM})
-            if(PROFILE STREQUAL "spirv")
-                set(PROFILE_PLATFORM "linux")
-            endif()
-
-            add_custom_command(
-                OUTPUT "${OUTPUT_FILE}"
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${SOFAIMGUI_SHADER_OUTPUT_DIR}/${PROFILE_DIR}"
-                COMMAND bgfx::shaderc
-                    -f "${SOFAIMGUI_SHADER_SRC_DIR}/${SHADER_NAME}.sc"
-                    -o "${OUTPUT_FILE}"
-                    --type ${SHADER_TYPE_LOWER}
-                    --platform ${PROFILE_PLATFORM}
-                    --profile ${PROFILE}
-                    --varyingdef "${SOFAIMGUI_SHADER_SRC_DIR}/${VARYING_FILE}"
-                    -i "${BGFX_SHADER_INCLUDE_PATH}"
-                    -i "${SOFAIMGUI_SHADER_SRC_DIR}"
-                # shaderc itself is a dependency: its binary format follows the bgfx version.
-                DEPENDS "${SOFAIMGUI_SHADER_SRC_DIR}/${SHADER_NAME}.sc" "${SOFAIMGUI_SHADER_SRC_DIR}/${VARYING_FILE}" shaderc
-                COMMENT "Compiling shader ${SHADER_NAME} (${PROFILE})"
-                VERBATIM
-            )
-
-            list(APPEND SOFAIMGUI_ALL_SHADER_OUTPUTS "${OUTPUT_FILE}")
-        endforeach()
-    endforeach()
-
-    add_custom_target(${PROJECT_NAME}_shaders ALL DEPENDS ${SOFAIMGUI_ALL_SHADER_OUTPUTS})
-    add_dependencies(${PROJECT_NAME}_shaders shaderc)
-    add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_shaders)
 
     target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAIMGUI_SHADERS_DIR="${SOFAIMGUI_SHADER_OUTPUT_DIR}")
 endif()
