@@ -6,7 +6,7 @@
 
 #include "imgui_impl_bgfx.h"
 
-#include <bgfx/bgfx.h>
+#include <bgfx/c99/bgfx.h>
 #include <bx/math.h>
 
 #include <BGFXPlugin/BGFXShaderUtils.h>
@@ -14,10 +14,10 @@
 #include <cstring>
 #include <string>
 
-static bgfx::TextureHandle g_FontTexture = BGFX_INVALID_HANDLE;
-static bgfx::ProgramHandle g_ShaderHandle = BGFX_INVALID_HANDLE;
-static bgfx::UniformHandle g_AttribLocationTex = BGFX_INVALID_HANDLE;
-static bgfx::VertexLayout  g_VertexLayout;
+static bgfx_texture_handle_t g_FontTexture = BGFX_INVALID_HANDLE;
+static bgfx_program_handle_t g_ShaderHandle = BGFX_INVALID_HANDLE;
+static bgfx_uniform_handle_t g_AttribLocationTex = BGFX_INVALID_HANDLE;
+static bgfx_vertex_layout_t  g_VertexLayout;
 static uint8_t g_View = 255;
 
 void ImGui_Implbgfx_RenderDrawLists(ImDrawData* draw_data)
@@ -27,7 +27,7 @@ void ImGui_Implbgfx_RenderDrawLists(ImDrawData* draw_data)
     if (fb_width <= 0 || fb_height <= 0)
         return;
 
-    const bgfx::Caps* caps = bgfx::getCaps();
+    const bgfx_caps_t* caps = bgfx_get_caps();
 
     const float L = draw_data->DisplayPos.x;
     const float T = draw_data->DisplayPos.y;
@@ -37,8 +37,8 @@ void ImGui_Implbgfx_RenderDrawLists(ImDrawData* draw_data)
     float ortho[16];
     bx::mtxOrtho(ortho, L, R, B, T, 0.0f, 1000.0f, 0.0f, caps->homogeneousDepth);
 
-    bgfx::setViewTransform(g_View, nullptr, ortho);
-    bgfx::setViewRect(g_View, 0, 0, static_cast<uint16_t>(fb_width), static_cast<uint16_t>(fb_height));
+    bgfx_set_view_transform(g_View, nullptr, ortho);
+    bgfx_set_view_rect(g_View, 0, 0, static_cast<uint16_t>(fb_width), static_cast<uint16_t>(fb_height), 0.0f, 1.0f);
 
     constexpr uint64_t state = BGFX_STATE_WRITE_RGB
         | BGFX_STATE_WRITE_A
@@ -59,15 +59,15 @@ void ImGui_Implbgfx_RenderDrawLists(ImDrawData* draw_data)
         const auto numVertices = static_cast<uint32_t>(cmd_list->VtxBuffer.Size);
         const auto numIndices  = static_cast<uint32_t>(cmd_list->IdxBuffer.Size);
 
-        if (numVertices != bgfx::getAvailTransientVertexBuffer(numVertices, g_VertexLayout)
-            || numIndices != bgfx::getAvailTransientIndexBuffer(numIndices))
+        if (numVertices != bgfx_get_avail_transient_vertex_buffer(numVertices, &g_VertexLayout)
+            || numIndices != bgfx_get_avail_transient_index_buffer(numIndices, false))
             break;
 
-        bgfx::TransientVertexBuffer tvb;
-        bgfx::TransientIndexBuffer  tib;
+        bgfx_transient_vertex_buffer_t tvb;
+        bgfx_transient_index_buffer_t  tib;
 
-        bgfx::allocTransientVertexBuffer(&tvb, numVertices, g_VertexLayout);
-        bgfx::allocTransientIndexBuffer(&tib, numIndices);
+        bgfx_alloc_transient_vertex_buffer(&tvb, numVertices, &g_VertexLayout);
+        bgfx_alloc_transient_index_buffer(&tib, numIndices, false);
 
         memcpy(tvb.data, cmd_list->VtxBuffer.Data, numVertices * sizeof(ImDrawVert));
         memcpy(tib.data, cmd_list->IdxBuffer.Data, numIndices * sizeof(ImDrawIdx));
@@ -94,24 +94,24 @@ void ImGui_Implbgfx_RenderDrawLists(ImDrawData* draw_data)
 
             const auto sc_x = static_cast<uint16_t>(bx::max(clip_min.x, 0.0f));
             const auto sc_y = static_cast<uint16_t>(bx::max(clip_min.y, 0.0f));
-            bgfx::setScissor(sc_x, sc_y,
+            bgfx_set_scissor(sc_x, sc_y,
                 static_cast<uint16_t>(bx::min(clip_max.x, 65535.0f) - sc_x),
                 static_cast<uint16_t>(bx::min(clip_max.y, 65535.0f) - sc_y));
 
-            bgfx::setState(state);
+            bgfx_set_state(state, 0);
 
-            bgfx::TextureHandle texture = {
+            const bgfx_texture_handle_t texture = {
                 static_cast<uint16_t>(static_cast<uint64_t>(pcmd->GetTexID()) & 0xffff) };
-            bgfx::setTexture(0, g_AttribLocationTex, texture);
+            bgfx_set_texture(0, g_AttribLocationTex, texture, UINT32_MAX);
 
-            bgfx::setVertexBuffer(0, &tvb, pcmd->VtxOffset, numVertices - pcmd->VtxOffset);
-            bgfx::setIndexBuffer(&tib, pcmd->IdxOffset, pcmd->ElemCount);
-            bgfx::submit(g_View, g_ShaderHandle);
+            bgfx_set_transient_vertex_buffer(0, &tvb, pcmd->VtxOffset, numVertices - pcmd->VtxOffset);
+            bgfx_set_transient_index_buffer(&tib, pcmd->IdxOffset, pcmd->ElemCount);
+            bgfx_submit(g_View, g_ShaderHandle, 0, BGFX_DISCARD_ALL);
         }
     }
 
     if (draw_data->CmdListsCount == 0)
-        bgfx::touch(g_View);
+        bgfx_touch(g_View);
 }
 
 bool ImGui_Implbgfx_CreateFontsTexture()
@@ -122,13 +122,13 @@ bool ImGui_Implbgfx_CreateFontsTexture()
     int width, height;
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
-    g_FontTexture = bgfx::createTexture2D(
+    g_FontTexture = bgfx_create_texture_2d(
         static_cast<uint16_t>(width),
         static_cast<uint16_t>(height),
         false, 1,
-        bgfx::TextureFormat::RGBA8,
+        BGFX_TEXTURE_FORMAT_RGBA8,
         0,
-        bgfx::copy(pixels, width * height * 4));
+        bgfx_copy(pixels, width * height * 4), 0);
 
     io.Fonts->SetTexID(static_cast<ImTextureID>(g_FontTexture.idx));
 
@@ -137,10 +137,10 @@ bool ImGui_Implbgfx_CreateFontsTexture()
 
 void ImGui_Implbgfx_DestroyFontsTexture()
 {
-    if (bgfx::isValid(g_FontTexture))
+    if (BGFX_HANDLE_IS_VALID(g_FontTexture))
     {
-        bgfx::destroy(g_FontTexture);
-        g_FontTexture = BGFX_INVALID_HANDLE;
+        bgfx_destroy_texture(g_FontTexture);
+        g_FontTexture.idx = UINT16_MAX;
         ImGui::GetIO().Fonts->SetTexID(0);
     }
 }
@@ -153,20 +153,17 @@ bool ImGui_Implbgfx_CreateDeviceObjects()
     static const int anchor = 0;
     static const std::string shadersDir = bgfxplugin::findDataDirectory(
         &anchor, "share/sofa/SofaImGui/shaders", SOFAIMGUI_SHADERS_DIR);
-    const bgfx_program_handle_t program = bgfxplugin::loadProgram(
-        "vs_ocornut_imgui", "fs_ocornut_imgui", shadersDir);
-    g_ShaderHandle.idx = program.idx;
+    g_ShaderHandle = bgfxplugin::loadProgram("vs_ocornut_imgui", "fs_ocornut_imgui", shadersDir);
 
-    g_VertexLayout
-        .begin()
-            .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
-        .end();
+    bgfx_vertex_layout_begin(&g_VertexLayout, BGFX_RENDERER_TYPE_NOOP);
+    bgfx_vertex_layout_add(&g_VertexLayout, BGFX_ATTRIB_POSITION, 2, BGFX_ATTRIB_TYPE_FLOAT, false, false);
+    bgfx_vertex_layout_add(&g_VertexLayout, BGFX_ATTRIB_TEXCOORD0, 2, BGFX_ATTRIB_TYPE_FLOAT, false, false);
+    bgfx_vertex_layout_add(&g_VertexLayout, BGFX_ATTRIB_COLOR0, 4, BGFX_ATTRIB_TYPE_UINT8, true, false);
+    bgfx_vertex_layout_end(&g_VertexLayout);
 
-    g_AttribLocationTex = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
+    g_AttribLocationTex = bgfx_create_uniform("s_tex", BGFX_UNIFORM_TYPE_SAMPLER, 1);
 
-    if (!bgfx::isValid(g_FontTexture))
+    if (!BGFX_HANDLE_IS_VALID(g_FontTexture))
         ImGui_Implbgfx_CreateFontsTexture();
 
     return true;
@@ -176,16 +173,16 @@ void ImGui_Implbgfx_InvalidateDeviceObjects()
 {
     ImGui_Implbgfx_DestroyFontsTexture();
 
-    if (bgfx::isValid(g_ShaderHandle))
+    if (BGFX_HANDLE_IS_VALID(g_ShaderHandle))
     {
-        bgfx::destroy(g_ShaderHandle);
-        g_ShaderHandle = BGFX_INVALID_HANDLE;
+        bgfx_destroy_program(g_ShaderHandle);
+        g_ShaderHandle.idx = UINT16_MAX;
     }
 
-    if (bgfx::isValid(g_AttribLocationTex))
+    if (BGFX_HANDLE_IS_VALID(g_AttribLocationTex))
     {
-        bgfx::destroy(g_AttribLocationTex);
-        g_AttribLocationTex = BGFX_INVALID_HANDLE;
+        bgfx_destroy_uniform(g_AttribLocationTex);
+        g_AttribLocationTex.idx = UINT16_MAX;
     }
 }
 
@@ -205,7 +202,7 @@ void ImGui_Implbgfx_Shutdown()
 
 void ImGui_Implbgfx_NewFrame()
 {
-    if (!bgfx::isValid(g_ShaderHandle))
+    if (!BGFX_HANDLE_IS_VALID(g_ShaderHandle))
     {
         ImGui_Implbgfx_CreateDeviceObjects();
     }
