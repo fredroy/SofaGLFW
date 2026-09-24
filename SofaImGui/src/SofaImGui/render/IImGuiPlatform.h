@@ -64,11 +64,11 @@ public:
 
     // --- offscreen scene target --------------------------------------------
 
-    /// Bind/prepare the offscreen render target sized to (width,height) in
-    /// framebuffer pixels. The scene is drawn into it, then shown via
-    /// sceneTexture() inside the viewport ImGui window.
-    /// @param msaa samples of the scene target (0 or 1: none), where the backend
-    ///             renders the scene offscreen with multisampling (bgfx)
+    /// Bind/prepare the offscreen render target for a viewport of (width,height) window
+    /// units. The scene is drawn into it, then shown via sceneTexture() inside the
+    /// viewport ImGui window. Each backend chooses the target's pixel size: bgfx
+    /// multiplies by the framebuffer scale, OpenGL renders at window units as on master.
+    /// @param msaa samples of the scene target (0 or 1: none)
     virtual void beginSceneTarget(int width, int height, int msaa) = 0;
 
     /// Unbind the offscreen render target.
@@ -79,7 +79,8 @@ public:
     virtual ImTextureID sceneTexture() const = 0;
 
     /// True if the scene texture is stored bottom-up and must be shown with a
-    /// vertical UV flip (OpenGL FBO). bgfx render targets are top-down.
+    /// vertical UV flip: the OpenGL FBO, and bgfx targets on renderers whose origin
+    /// is at the bottom left (bgfx's OpenGL); other bgfx renderers are top-down.
     virtual bool sceneTextureFlippedV() const = 0;
 
     // --- capabilities -------------------------------------------------------

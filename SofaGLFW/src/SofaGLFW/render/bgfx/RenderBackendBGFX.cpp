@@ -213,7 +213,7 @@ bool RenderBackendBGFX::requestBackbufferScreenshot(GLFWwindow* window, const st
 
 sofa::type::Vec2i RenderBackendBGFX::backbufferViewportSize(GLFWwindow* window) const
 {
-    // Logical pixels: SceneRendererBGFX applies the window content scale.
+    // Window units: SceneRendererBGFX applies the framebuffer scale.
     int width = 0, height = 0;
     glfwGetWindowSize(window, &width, &height);
     return { width, height };

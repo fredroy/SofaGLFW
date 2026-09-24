@@ -34,9 +34,10 @@
 namespace sofaglfw::render
 {
 
-/// bgfx implementation of ISceneRenderer: two-view (background + scene) draw
-/// with camera matrix setup, depth-range remap for non-GL backends, and a
-/// textured background quad rendered from a transient buffer.
+/// bgfx implementation of ISceneRenderer: the background (color, gradient or image
+/// quad), the scene, its transparent models and DrawToolBGFX's overlays in their own
+/// views (below), with the camera matrices and the depth-range remap of non-GL
+/// renderers.
 class SceneRendererBGFX : public ISceneRenderer, public bgfxplugin::GpuResourceOwner
 {
 public:
