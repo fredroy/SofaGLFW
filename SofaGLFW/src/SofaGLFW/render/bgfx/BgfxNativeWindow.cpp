@@ -27,12 +27,13 @@
 #include <bx/platform.h>
 
 #if BX_PLATFORM_LINUX
-#    if ENTRY_CONFIG_USE_WAYLAND
-#        include <wayland-egl.h>
+// GLFW >= 3.4 picks X11 or Wayland at runtime (SOFAGLFW_USEX11 forces X11): both
+// are exposed, Wayland when its client headers are available (glfw3native.h needs them).
+#    define GLFW_EXPOSE_NATIVE_X11
+#    define GLFW_EXPOSE_NATIVE_GLX
+#    if __has_include(<wayland-client.h>)
 #        define GLFW_EXPOSE_NATIVE_WAYLAND
-#    else
-#        define GLFW_EXPOSE_NATIVE_X11
-#        define GLFW_EXPOSE_NATIVE_GLX
+#        define SOFAGLFW_BGFX_WAYLAND 1
 #    endif
 #elif BX_PLATFORM_OSX
 #    define GLFW_EXPOSE_NATIVE_COCOA
@@ -50,22 +51,12 @@ namespace sofaglfw::render
 void* bgfxNativeWindowHandle(GLFWwindow* window)
 {
 #if BX_PLATFORM_LINUX
-#    if ENTRY_CONFIG_USE_WAYLAND
-    wl_egl_window* win_impl = (wl_egl_window*)glfwGetWindowUserPointer(window);
-    if (!win_impl)
-    {
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
-        struct wl_surface* surface = (struct wl_surface*)glfwGetWaylandWindow(window);
-        if (!surface)
-            return nullptr;
-        win_impl = wl_egl_window_create(surface, width, height);
-        glfwSetWindowUserPointer(window, (void*)(uintptr_t)win_impl);
-    }
-    return (void*)(uintptr_t)win_impl;
-#    else
-    return (void*)(uintptr_t)glfwGetX11Window(window);
+#    if SOFAGLFW_BGFX_WAYLAND
+    // bgfx takes the wl_surface itself (and wraps it in a wl_egl_window for OpenGL).
+    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+        return glfwGetWaylandWindow(window);
 #    endif
+    return (void*)(uintptr_t)glfwGetX11Window(window);
 #elif BX_PLATFORM_OSX
     return glfwGetCocoaWindow(window);
 #elif BX_PLATFORM_WINDOWS
@@ -78,11 +69,11 @@ void* bgfxNativeWindowHandle(GLFWwindow* window)
 void* bgfxNativeDisplayHandle()
 {
 #if BX_PLATFORM_LINUX
-#    if ENTRY_CONFIG_USE_WAYLAND
-    return glfwGetWaylandDisplay();
-#    else
-    return glfwGetX11Display();
+#    if SOFAGLFW_BGFX_WAYLAND
+    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+        return glfwGetWaylandDisplay();
 #    endif
+    return glfwGetX11Display();
 #else
     return nullptr;
 #endif
@@ -90,12 +81,10 @@ void* bgfxNativeDisplayHandle()
 
 bgfx_native_window_handle_type bgfxNativeWindowHandleType()
 {
-#if BX_PLATFORM_LINUX
-#    if ENTRY_CONFIG_USE_WAYLAND
-    return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_WAYLAND;
-#    else
+#if BX_PLATFORM_LINUX && SOFAGLFW_BGFX_WAYLAND
+    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+        return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_WAYLAND;
     return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_DEFAULT;
-#    endif
 #else
     return bgfx_native_window_handle_type::BGFX_NATIVE_WINDOW_HANDLE_TYPE_DEFAULT;
 #endif
