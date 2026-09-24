@@ -23,6 +23,8 @@
 
 #include <sofa/helper/io/STBImage.h>
 
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace sofaglfw::render
@@ -40,7 +42,20 @@ struct BgfxScreenshotCallback : bgfx_callback_interface_t
         vtbl = &s_vtbl;
     }
 
-    static void fatal(bgfx_callback_interface_t*, const char*, uint16_t, bgfx_fatal_t, const char*) {}
+    /// bgfx is in an undefined state after a fatal error and expects the callback not
+    /// to return (its default one aborts). It may be called from the render thread,
+    /// hence stderr rather than SOFA's messaging. Debug checks (BGFX_CONFIG_DEBUG
+    /// builds) are reported and execution goes on, as with bgfx's default callback
+    /// outside a debugger.
+    static void fatal(bgfx_callback_interface_t*, const char* filePath, uint16_t line, bgfx_fatal_t code,
+                      const char* str)
+    {
+        std::fprintf(stderr, "[bgfx] %s(%u): fatal error %d: %s\n", filePath ? filePath : "?", unsigned(line),
+                     int(code), str ? str : "");
+        std::fflush(stderr);
+        if (code != BGFX_FATAL_DEBUG_CHECK)
+            std::abort();
+    }
     static void traceVargs(bgfx_callback_interface_t*, const char*, uint16_t, const char*, va_list) {}
     static void profilerBegin(bgfx_callback_interface_t*, const char*, uint32_t, const char*, uint16_t) {}
     static void profilerBeginLiteral(bgfx_callback_interface_t*, const char*, uint32_t, const char*, uint16_t) {}
