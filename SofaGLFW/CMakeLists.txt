@@ -84,13 +84,13 @@ if(BGFXPlugin_FOUND)
         ${SOFAGLFW_SOURCE_DIR}/render/bgfx/RenderBackendBGFX.h
         ${SOFAGLFW_SOURCE_DIR}/render/bgfx/SceneRendererBGFX.h
         ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxNativeWindow.h
-        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxScreenshotCallback.h
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxCallback.h
     )
     LIST(APPEND SOURCE_FILES
         ${SOFAGLFW_SOURCE_DIR}/render/bgfx/RenderBackendBGFX.cpp
         ${SOFAGLFW_SOURCE_DIR}/render/bgfx/SceneRendererBGFX.cpp
         ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxNativeWindow.cpp
-        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxScreenshotCallback.cpp
+        ${SOFAGLFW_SOURCE_DIR}/render/bgfx/BgfxCallback.cpp
     )
 endif()
 
@@ -133,8 +133,8 @@ if(BGFXPlugin_FOUND)
         OUTPUT_DIR "${SOFAGLFW_SHADERS_DIR}"
         INSTALL_DIR "share/sofa/${PROJECT_NAME}/shaders"
         SHADERS
-            vs_imgui VERTEX varying_imgui.def.sc
-            fs_imgui FRAGMENT varying_imgui.def.sc
+            vs_background VERTEX varying_background.def.sc
+            fs_background FRAGMENT varying_background.def.sc
     )
     target_compile_definitions(${PROJECT_NAME} PRIVATE SOFAGLFW_SHADERS_DIR="${SOFAGLFW_SHADERS_DIR}")
 endif()

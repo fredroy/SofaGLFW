@@ -249,7 +249,7 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
         static const int anchor = 0;
         static const std::string shadersDir = bgfxplugin::findDataDirectory(
             &anchor, "share/sofa/SofaGLFW/shaders", SOFAGLFW_SHADERS_DIR);
-        m_bgProgram = bgfxplugin::loadProgram("vs_imgui", "fs_imgui", shadersDir);
+        m_bgProgram = bgfxplugin::loadProgram("vs_background", "fs_background", shadersDir);
         m_bgTexUniform = bgfx_create_uniform("s_texColor", BGFX_UNIFORM_TYPE_SAMPLER, 1);
     }
 

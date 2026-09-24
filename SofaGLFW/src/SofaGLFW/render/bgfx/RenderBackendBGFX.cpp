@@ -20,7 +20,7 @@
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
 #include <SofaGLFW/render/bgfx/RenderBackendBGFX.h>
-#include <SofaGLFW/render/bgfx/BgfxScreenshotCallback.h>
+#include <SofaGLFW/render/bgfx/BgfxCallback.h>
 #include <SofaGLFW/render/bgfx/BgfxNativeWindow.h>
 #include <SofaGLFW/render/RenderBackendFactory.h>
 #include <SofaGLFW/render/bgfx/SceneRendererBGFX.h>
@@ -144,7 +144,7 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     init.swapChain.height = static_cast<uint32_t>(fbHeight);
     init.swapChain.flags = m_reset & kSwapChainFlags;
     init.reset = m_reset & ~kSwapChainFlags;
-    init.callback = bgfxScreenshotCallback();
+    init.callback = bgfxCallback();
 
     // Per-frame transient geometry pool. bgfx's defaults (6 MB vertices, 2 MB indices)
     // are sized for small UIs; DrawToolBGFX streams all debug geometry through it
