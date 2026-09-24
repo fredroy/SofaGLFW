@@ -175,8 +175,15 @@ void ImGuiPlatformBGFX::recreateSceneFB(uint16_t width, uint16_t height, int msa
 
     m_sceneFB = bgfx_create_frame_buffer_from_handles(2, textures, true);
     if (m_sceneFB.idx == UINT16_MAX)
+    {
         msg_error("ImGuiPlatformBGFX") << "Could not create the " << width << "x" << height
                                        << " scene frame buffer: the viewport stays empty.";
+        // The frame buffer did not take the textures over: release them.
+        for (const bgfx_texture_handle_t& texture : textures)
+            if (texture.idx != UINT16_MAX)
+                bgfx_destroy_texture(texture);
+        textures[0].idx = UINT16_MAX;
+    }
     m_sceneFBTexture = textures[0];
     m_sceneFBWidth = width;
     m_sceneFBHeight = height;
@@ -196,13 +203,11 @@ void ImGuiPlatformBGFX::beginSceneTarget(int width, int height, int msaa)
     if (desiredW != m_sceneFBWidth || desiredH != m_sceneFBHeight || msaa != m_sceneFBMsaa)
         recreateSceneFB(desiredW, desiredH, msaa);
 
-    if (m_sceneFB.idx != UINT16_MAX)
-    {
-        // Every scene view (background, scene, transparent models, overlays) renders
-        // into the offscreen FB.
-        for (uint16_t view = 0; view < sofaglfw::render::SceneRendererBGFX::kSceneViewCount; ++view)
-            bgfx_set_view_frame_buffer(view, m_sceneFB);
-    }
+    // Every scene view (background, scene, transparent models, overlays) renders into
+    // the offscreen FB, even when invalid (its creation failed): the views must not
+    // keep a destroyed handle, which bgfx may give to another frame buffer.
+    for (uint16_t view = 0; view < sofaglfw::render::SceneRendererBGFX::kSceneViewCount; ++view)
+        bgfx_set_view_frame_buffer(view, m_sceneFB);
 }
 
 void ImGuiPlatformBGFX::endSceneTarget()
