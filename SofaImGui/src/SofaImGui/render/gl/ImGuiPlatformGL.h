@@ -65,6 +65,18 @@ private:
     std::unique_ptr<sofa::gl::FrameBufferObject> m_fbo;
     std::pair<unsigned int, unsigned int> m_currentFBOSize{0, 0};
 
+    /// Multisampled target the scene is drawn into when MSAA is on, resolved into
+    /// m_fbo (whose texture the viewport shows) at the end of the scene.
+    bool ensureMsaaTarget(unsigned int width, unsigned int height, int samples);
+    void releaseMsaaTarget();
+    GLuint m_msaaFbo{0};
+    GLuint m_msaaColor{0};
+    GLuint m_msaaDepth{0};
+    int m_msaaSamples{0};
+    std::pair<unsigned int, unsigned int> m_msaaSize{0, 0};
+    bool m_msaaActive{false}; ///< the current scene is drawn into m_msaaFbo
+    bool m_msaaFailed{false}; ///< incomplete multisampled FBO: not retried
+
     static inline constexpr int s_NB_PBOS = 2;
     GLuint m_pbos[s_NB_PBOS]{0, 0};
     sofa::type::Vec2i m_pboSize;
