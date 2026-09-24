@@ -61,6 +61,9 @@ public:
 
 private:
     void recreateSceneFB(uint16_t width, uint16_t height, int msaa);
+    /// Destroy (while bgfx runs) and forget the scene target, or the read-back texture.
+    void destroySceneFB();
+    void destroyReadbackTexture();
     void processScreenshotReadback();
 
     bgfx_frame_buffer_handle_t m_sceneFB{UINT16_MAX};

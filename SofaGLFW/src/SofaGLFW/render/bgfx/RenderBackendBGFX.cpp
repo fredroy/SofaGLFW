@@ -174,12 +174,7 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
 
 void RenderBackendBGFX::resize(uint32_t width, uint32_t height)
 {
-    if (!m_initialized)
-        return;
-    m_swapChain.width = width;
-    m_swapChain.height = height;
-    m_swapChain.flags = m_reset & kSwapChainFlags;
-    bgfx_reset(m_reset & ~kSwapChainFlags, &m_swapChain);
+    resetSwapChain(width, height);
 }
 
 uint32_t RenderBackendBGFX::present(GLFWwindow* window)
@@ -262,8 +257,15 @@ void RenderBackendBGFX::applyReset()
         return;
     int w, h;
     glfwGetFramebufferSize(m_window, &w, &h); // pixels, as initEngine
-    m_swapChain.width = static_cast<uint32_t>(w);
-    m_swapChain.height = static_cast<uint32_t>(h);
+    resetSwapChain(static_cast<uint32_t>(w), static_cast<uint32_t>(h));
+}
+
+void RenderBackendBGFX::resetSwapChain(uint32_t width, uint32_t height)
+{
+    if (!m_initialized)
+        return;
+    m_swapChain.width = width;
+    m_swapChain.height = height;
     m_swapChain.flags = m_reset & kSwapChainFlags;
     bgfx_reset(m_reset & ~kSwapChainFlags, &m_swapChain);
 }

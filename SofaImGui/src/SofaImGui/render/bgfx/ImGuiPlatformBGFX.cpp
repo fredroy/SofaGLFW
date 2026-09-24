@@ -28,7 +28,7 @@
 #include <backends/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
 
-#include <sofa/helper/io/STBImage.h>
+#include <SofaGLFW/render/bgfx/BgfxCallback.h> // saveRgba8Screenshot
 #include <sofa/helper/logging/Messaging.h>
 
 #include <algorithm>
@@ -48,17 +48,23 @@ namespace
 
 ImGuiPlatformBGFX::~ImGuiPlatformBGFX()
 {
-    if (m_sceneFB.idx != UINT16_MAX)
-    {
+    destroySceneFB();
+    destroyReadbackTexture();
+}
+
+void ImGuiPlatformBGFX::destroySceneFB()
+{
+    if (m_sceneFB.idx != UINT16_MAX && bgfxplugin::context::isAlive())
         bgfx_destroy_frame_buffer(m_sceneFB);
-        m_sceneFB.idx = UINT16_MAX;
-        m_sceneFBTexture.idx = UINT16_MAX;
-    }
-    if (m_readbackTexture.idx != UINT16_MAX)
-    {
+    m_sceneFB.idx = UINT16_MAX;
+    m_sceneFBTexture.idx = UINT16_MAX;
+}
+
+void ImGuiPlatformBGFX::destroyReadbackTexture()
+{
+    if (m_readbackTexture.idx != UINT16_MAX && bgfxplugin::context::isAlive())
         bgfx_destroy_texture(m_readbackTexture);
-        m_readbackTexture.idx = UINT16_MAX;
-    }
+    m_readbackTexture.idx = UINT16_MAX;
 }
 
 void ImGuiPlatformBGFX::initBackend(GLFWwindow* window)
@@ -93,23 +99,10 @@ void ImGuiPlatformBGFX::renderDrawData(ImDrawData* drawData)
 void ImGuiPlatformBGFX::shutdown()
 {
     // Normally runs before the backend shuts bgfx down; after that, the handles are gone.
-    if (!bgfxplugin::context::isAlive())
-    {
-        m_sceneFB.idx = m_sceneFBTexture.idx = m_readbackTexture.idx = UINT16_MAX;
-        return;
-    }
-    if (m_sceneFB.idx != UINT16_MAX)
-    {
-        bgfx_destroy_frame_buffer(m_sceneFB);
-        m_sceneFB.idx = UINT16_MAX;
-        m_sceneFBTexture.idx = UINT16_MAX;
-    }
-    if (m_readbackTexture.idx != UINT16_MAX)
-    {
-        bgfx_destroy_texture(m_readbackTexture);
-        m_readbackTexture.idx = UINT16_MAX;
-    }
-    ImGui_Implbgfx_Shutdown();
+    destroySceneFB();
+    destroyReadbackTexture();
+    if (bgfxplugin::context::isAlive())
+        ImGui_Implbgfx_Shutdown();
 }
 
 void ImGuiPlatformBGFX::recreateFontsTexture()
@@ -120,12 +113,7 @@ void ImGuiPlatformBGFX::recreateFontsTexture()
 
 void ImGuiPlatformBGFX::recreateSceneFB(uint16_t width, uint16_t height, int msaa)
 {
-    if (m_sceneFB.idx != UINT16_MAX)
-    {
-        bgfx_destroy_frame_buffer(m_sceneFB);
-        m_sceneFB.idx = UINT16_MAX;
-        m_sceneFBTexture.idx = UINT16_MAX;
-    }
+    destroySceneFB();
 
     if (width == 0 || height == 0)
         return;
@@ -235,8 +223,7 @@ void ImGuiPlatformBGFX::pumpScreenshot(uint32_t presentedFrame)
             || m_readbackWidth != m_sceneFBWidth
             || m_readbackHeight != m_sceneFBHeight)
         {
-            if (m_readbackTexture.idx != UINT16_MAX)
-                bgfx_destroy_texture(m_readbackTexture);
+            destroyReadbackTexture();
 
             m_readbackTexture = bgfx_create_texture_2d(
                 m_sceneFBWidth, m_sceneFBHeight, false, 1,
@@ -275,25 +262,10 @@ void ImGuiPlatformBGFX::processScreenshotReadback()
 {
     m_readbackPending = false;
 
-    sofa::helper::io::STBImage image;
-    image.init(m_readbackWidth, m_readbackHeight, 1, 1,
-        sofa::helper::io::Image::DataType::UINT32,
-        sofa::helper::io::Image::ChannelFormat::RGBA);
-
-    const uint8_t* src = m_readbackData.data();
-    uint8_t* dst = image.getPixels();
-    const uint32_t pitch = m_readbackWidth * 4;
-
-    // STBImage::save writes the rows bottom-up: give it bottom-up rows. The texture
-    // is top-down, except on renderers whose targets start at the bottom left.
-    const bool bottomUp = sceneTextureFlippedV();
-    for (uint32_t row = 0; row < m_readbackHeight; ++row)
-    {
-        const uint32_t srcRow = bottomUp ? row : m_readbackHeight - 1 - row;
-        memcpy(dst + row * pitch, src + srcRow * pitch, pitch);
-    }
-
-    image.save(m_readbackPath.c_str(), 90);
+    // The texture is top-down, except on renderers whose targets start at the bottom left.
+    sofaglfw::render::saveRgba8Screenshot(m_readbackPath.c_str(), m_readbackWidth, m_readbackHeight,
+                                          m_readbackWidth * 4u, m_readbackData.data(), /*bgra*/ false,
+                                          /*bottomUp*/ sceneTextureFlippedV());
     m_readbackPath.clear();
     m_readbackData.clear();
 }

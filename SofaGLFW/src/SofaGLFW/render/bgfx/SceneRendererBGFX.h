@@ -74,8 +74,9 @@ public:
 private:
     /// The rect is in framebuffer pixels; the scale converts it back to logical pixels
     /// so the image tiles at one texel per logical pixel.
-    bool drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH,
-                             int fbW, int fbH, float xscale, float yscale);
+    /// The background image quad over a (width, height) render target, in the
+    /// background view; false when there is no image (or program) to draw.
+    bool drawBackgroundImage(uint16_t width, uint16_t height, float xscale, float yscale);
 
     struct Background
     {

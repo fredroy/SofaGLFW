@@ -59,7 +59,9 @@ public:
     int  getMsaa() const override;
 
 private:
+    /// Apply m_reset to the window's current framebuffer size, or to a new size.
     void applyReset();
+    void resetSwapChain(uint32_t width, uint32_t height);
 
     GLFWwindow* m_window{nullptr};
 
