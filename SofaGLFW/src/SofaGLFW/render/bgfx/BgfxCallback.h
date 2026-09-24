@@ -21,7 +21,10 @@
 ******************************************************************************/
 #pragma once
 
+#include <SofaGLFW/config.h>
 #include <bgfx/c99/bgfx.h>
+
+#include <cstdint>
 
 namespace sofaglfw::render
 {
@@ -30,5 +33,11 @@ namespace sofaglfw::render
 /// back buffer screenshots of bgfx_request_screen_shot() via sofa::helper::io, and
 /// reports fatal errors and aborts.
 bgfx_callback_interface_t* bgfxCallback();
+
+/// Save 8-bit RGBA (or BGRA) pixels read back from bgfx as an image file.
+/// @param pitch bytes per row of @p pixels
+/// @param bottomUp the rows of @p pixels start at the bottom of the image
+SOFAGLFW_API void saveRgba8Screenshot(const char* path, uint32_t width, uint32_t height, uint32_t pitch,
+                                      const uint8_t* pixels, bool bgra, bool bottomUp);
 
 } // namespace sofaglfw::render

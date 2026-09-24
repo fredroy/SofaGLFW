@@ -70,37 +70,13 @@ struct BgfxCallback : bgfx_callback_interface_t
     {
         if (!filePath || !data)
             return;
-
-        sofa::helper::io::STBImage image;
-        image.init(width, height, 1, 1,
-            sofa::helper::io::Image::DataType::UINT32,
-            sofa::helper::io::Image::ChannelFormat::RGBA);
-
-        const uint8_t* src = static_cast<const uint8_t*>(data);
-        uint8_t* dst = image.getPixels();
-        const uint32_t dstPitch = width * 4;
-
-        for (uint32_t row = 0; row < height; ++row)
+        if (format != BGFX_TEXTURE_FORMAT_RGBA8 && format != BGFX_TEXTURE_FORMAT_BGRA8)
         {
-            uint32_t srcRow = yflip ? row : (height - 1 - row);
-            const uint8_t* srcLine = src + srcRow * pitch;
-
-            if (format == BGFX_TEXTURE_FORMAT_RGBA8)
-            {
-                memcpy(dst + row * dstPitch, srcLine, dstPitch);
-            }
-            else if (format == BGFX_TEXTURE_FORMAT_BGRA8)
-            {
-                for (uint32_t x = 0; x < width; ++x)
-                {
-                    dst[row * dstPitch + x * 4 + 0] = srcLine[x * 4 + 2];
-                    dst[row * dstPitch + x * 4 + 1] = srcLine[x * 4 + 1];
-                    dst[row * dstPitch + x * 4 + 2] = srcLine[x * 4 + 0];
-                    dst[row * dstPitch + x * 4 + 3] = srcLine[x * 4 + 3];
-                }
-            }
+            std::fprintf(stderr, "[bgfx] screenshot %s: unsupported back buffer format %d\n", filePath, int(format));
+            return;
         }
-        image.save(filePath, 90);
+        saveRgba8Screenshot(filePath, width, height, pitch, static_cast<const uint8_t*>(data),
+                            format == BGFX_TEXTURE_FORMAT_BGRA8, /*bottomUp*/ yflip);
     }
 
     static void captureBegin(bgfx_callback_interface_t*, uint32_t, uint32_t, uint32_t, bgfx_texture_format_t, bool) {}
@@ -126,6 +102,36 @@ bgfx_callback_vtbl_t BgfxCallback::s_vtbl = {
 BgfxCallback s_bgfxCallback;
 
 } // anonymous namespace
+
+void saveRgba8Screenshot(const char* path, uint32_t width, uint32_t height, uint32_t pitch,
+                         const uint8_t* pixels, bool bgra, bool bottomUp)
+{
+    sofa::helper::io::STBImage image;
+    image.init(width, height, 1, 1, sofa::helper::io::Image::DataType::UINT32,
+               sofa::helper::io::Image::ChannelFormat::RGBA);
+
+    // STBImage::save writes the rows bottom-up: give it bottom-up rows.
+    uint8_t* dst = image.getPixels();
+    const uint32_t dstPitch = width * 4;
+    for (uint32_t row = 0; row < height; ++row)
+    {
+        const uint8_t* src = pixels + (bottomUp ? row : height - 1 - row) * pitch;
+        uint8_t* line = dst + row * dstPitch;
+        if (!bgra)
+        {
+            std::memcpy(line, src, dstPitch);
+            continue;
+        }
+        for (uint32_t x = 0; x < width; ++x)
+        {
+            line[x * 4 + 0] = src[x * 4 + 2];
+            line[x * 4 + 1] = src[x * 4 + 1];
+            line[x * 4 + 2] = src[x * 4 + 0];
+            line[x * 4 + 3] = src[x * 4 + 3];
+        }
+    }
+    image.save(path, 90);
+}
 
 bgfx_callback_interface_t* bgfxCallback()
 {
