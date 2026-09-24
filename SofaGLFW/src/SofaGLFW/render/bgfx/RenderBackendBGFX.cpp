@@ -128,7 +128,14 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     m_type = rendererFromEnvironment(m_type);
     init.type = m_type;
     init.platformData.type = bgfxNativeWindowHandleType();
+    // The renderer's debug/validation layers (Vulkan validation, D3D debug layer...)
+    // cost CPU and GPU time every frame: only in Debug builds, or when asked for.
+#ifdef NDEBUG
+    const char* debugEnv = std::getenv("SOFA_BGFX_DEBUG");
+    init.debug = debugEnv && *debugEnv && std::string(debugEnv) != "0";
+#else
     init.debug = true;
+#endif
 
     int fbWidth, fbHeight;
     glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
