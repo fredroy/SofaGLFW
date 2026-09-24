@@ -24,6 +24,7 @@
 
 #include <array>
 #include <memory>
+#include <set>
 #include <SofaGLFW/BaseGUIEngine.h>
 #include <SofaGLFW/render/RenderAPI.h>
 
@@ -117,6 +118,16 @@ protected:
     windows::WindowState winManagerViewPort;
     std::map<std::string, windows::WindowState> winManagerAdditionalGUIs;
     windows::WindowState firstRunState;
+
+    /// Scene graph and selection windows state: raw pointers to components of the
+    /// scene, forgotten (clearComponentSelection) before the scene is unloaded or
+    /// replaced, else the next frame reads destroyed components.
+    std::set<sofa::core::objectmodel::Base*> m_openedComponents;
+    std::set<sofa::core::objectmodel::BaseObject*> m_focusedComponents;
+    std::set<sofa::core::objectmodel::Base*> m_currentSelection;
+    /// The root node the sets above belong to (only compared, never dereferenced).
+    const sofa::simulation::Node* m_selectionRoot{nullptr};
+    void clearComponentSelection(sofaglfw::SofaGLFWBaseGUI* baseGUI);
 
     bool isViewportDisplayedForTheFirstTime{true};
     sofa::type::Vec2f lastViewPortPos;

@@ -246,8 +246,19 @@ sofaglfw::BaseGUIEngine::InitialRenderConfig ImGuiGUIEngine::getInitialRenderCon
     return cfg;
 }
 
+void ImGuiGUIEngine::clearComponentSelection(sofaglfw::SofaGLFWBaseGUI* baseGUI)
+{
+    m_openedComponents.clear();
+    m_focusedComponents.clear();
+    m_currentSelection.clear();
+    m_selectionRoot = nullptr;
+    if (baseGUI)
+        baseGUI->setCurrentSelection({});
+}
+
 void ImGuiGUIEngine::loadFile(sofaglfw::SofaGLFWBaseGUI* baseGUI, sofa::core::sptr<sofa::simulation::Node>& groot, const std::string filePathName, bool reload)
 {
+    clearComponentSelection(baseGUI); // they point into the scene about to be unloaded
     sofa::simulation::node::unload(groot);
 
     groot = sofa::simulation::node::load(filePathName.c_str());
@@ -703,10 +714,13 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
 
     if (doCloseSimulation)
     {
+        // The windows would otherwise keep pointers to the unloaded components. The
+        // frame goes on with the empty scene: ImGui::NewFrame() was called, so it must
+        // reach ImGui::Render() and the present below.
+        clearComponentSelection(baseGUI);
         sofa::simulation::node::unload(groot);
         baseGUI->setSimulationIsRunning(false);
-        sofa::simulation::node::initRoot(baseGUI->getRootNode().get());
-        return;
+        sofa::simulation::node::initRoot(groot.get());
     }
 
     if (m_imguiNeedViewReset)
@@ -741,22 +755,26 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Scene graph window
      **************************************/
-    static std::set<core::objectmodel::Base*> openedComponents;
-    static std::set<core::objectmodel::BaseObject*> focusedComponents;
-    static std::set<core::objectmodel::Base*> currentSelection;
-    windows::showSceneGraph(groot, windowNameSceneGraph, openedComponents,
-                            focusedComponents, currentSelection,
+    // A scene set without loadFile() (e.g. by SofaGLFWGUI::setScene): the sets
+    // belong to the previous one.
+    if (groot.get() != m_selectionRoot)
+    {
+        clearComponentSelection(baseGUI);
+        m_selectionRoot = groot.get();
+    }
+    windows::showSceneGraph(groot, windowNameSceneGraph, m_openedComponents,
+                            m_focusedComponents, m_currentSelection,
                             winManagerSceneGraph, winManagerSelectionDescription);
 
     std::set<core::objectmodel::Base::SPtr> currentSelectionV;
-    for(auto component : currentSelection)
+    for(auto component : m_currentSelection)
         currentSelectionV.insert(component);
     baseGUI->setCurrentSelection(currentSelectionV);
 
     /***************************************
      * ShowSelection
      **************************************/
-    windows::showSelection(groot, windowNameSelectionDescription, currentSelection, focusedComponents,
+    windows::showSelection(groot, windowNameSelectionDescription, m_currentSelection, m_focusedComponents,
                             winManagerSelectionDescription);
 
     /***************************************
