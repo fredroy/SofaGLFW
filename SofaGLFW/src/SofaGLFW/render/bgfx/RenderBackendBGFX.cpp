@@ -39,6 +39,7 @@
 #include <sofa/core/ObjectFactory.h>
 #include <sofa/core/visual/VisualParams.h>
 
+#include <BGFXPlugin/BGFXIgnoredComponent.h>
 #include <BGFXPlugin/Context.h>
 #include <BGFXPlugin/DrawToolBGFX.h>
 #include <BGFXPlugin/init.h>
@@ -249,6 +250,9 @@ void RenderBackendBGFX::registerVisualModelAliases()
         sofa::core::ObjectFactory::ClassEntry::SPtr entry;
         sofa::core::ObjectFactory::AddAlias(glName, bgfxName, true, &entry);
     }
+
+    // The other Sofa.GL components (lights, shaders...) would call GL without a context.
+    bgfxplugin::ignoreGLOnlyComponents(sofa::core::ObjectFactory::getInstance());
 }
 
 void RenderBackendBGFX::applyReset()
