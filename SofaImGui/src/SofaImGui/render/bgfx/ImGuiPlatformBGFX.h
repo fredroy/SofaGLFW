@@ -25,6 +25,9 @@
 
 #include <bgfx/c99/bgfx.h>
 
+#include <deque>
+#include <string>
+
 namespace sofaimgui::render
 {
 
@@ -73,7 +76,10 @@ private:
     uint32_t m_readbackFrame{0};
     bool m_readbackPending{false};
 
-    std::string m_pendingScreenshotPath;
+    /// Requested screenshots, in order: one read-back is in flight at a time
+    /// (m_readbackPath), and a request made meanwhile waits for it.
+    std::deque<std::string> m_screenshotQueue;
+    std::string m_readbackPath;
     uint32_t m_lastPresentedFrame{0};
     GLFWwindow* m_window{nullptr};
 };
