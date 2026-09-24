@@ -19,7 +19,7 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#include <SofaGLFW/render/bgfx/BgfxScreenshotCallback.h>
+#include <SofaGLFW/render/bgfx/BgfxCallback.h>
 
 #include <sofa/helper/io/STBImage.h>
 
@@ -33,11 +33,11 @@ namespace sofaglfw::render
 namespace
 {
 
-struct BgfxScreenshotCallback : bgfx_callback_interface_t
+struct BgfxCallback : bgfx_callback_interface_t
 {
     static bgfx_callback_vtbl_t s_vtbl;
 
-    BgfxScreenshotCallback()
+    BgfxCallback()
     {
         vtbl = &s_vtbl;
     }
@@ -108,26 +108,26 @@ struct BgfxScreenshotCallback : bgfx_callback_interface_t
     static void captureFrame(bgfx_callback_interface_t*, const void*, uint32_t) {}
 };
 
-bgfx_callback_vtbl_t BgfxScreenshotCallback::s_vtbl = {
-    BgfxScreenshotCallback::fatal,
-    BgfxScreenshotCallback::traceVargs,
-    BgfxScreenshotCallback::profilerBegin,
-    BgfxScreenshotCallback::profilerBeginLiteral,
-    BgfxScreenshotCallback::profilerEnd,
-    BgfxScreenshotCallback::cacheReadSize,
-    BgfxScreenshotCallback::cacheRead,
-    BgfxScreenshotCallback::cacheWrite,
-    BgfxScreenshotCallback::screenShot,
-    BgfxScreenshotCallback::captureBegin,
-    BgfxScreenshotCallback::captureEnd,
-    BgfxScreenshotCallback::captureFrame,
+bgfx_callback_vtbl_t BgfxCallback::s_vtbl = {
+    BgfxCallback::fatal,
+    BgfxCallback::traceVargs,
+    BgfxCallback::profilerBegin,
+    BgfxCallback::profilerBeginLiteral,
+    BgfxCallback::profilerEnd,
+    BgfxCallback::cacheReadSize,
+    BgfxCallback::cacheRead,
+    BgfxCallback::cacheWrite,
+    BgfxCallback::screenShot,
+    BgfxCallback::captureBegin,
+    BgfxCallback::captureEnd,
+    BgfxCallback::captureFrame,
 };
 
-BgfxScreenshotCallback s_bgfxCallback;
+BgfxCallback s_bgfxCallback;
 
 } // anonymous namespace
 
-bgfx_callback_interface_t* bgfxScreenshotCallback()
+bgfx_callback_interface_t* bgfxCallback()
 {
     return &s_bgfxCallback;
 }

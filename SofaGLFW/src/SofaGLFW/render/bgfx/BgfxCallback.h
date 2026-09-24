@@ -26,8 +26,9 @@
 namespace sofaglfw::render
 {
 
-/// Returns the shared bgfx callback interface used to service
-/// bgfx_request_screen_shot() by writing an image via sofa::helper::io.
-bgfx_callback_interface_t* bgfxScreenshotCallback();
+/// The bgfx callback interface of the backend (bgfx_init_t::callback): it saves the
+/// back buffer screenshots of bgfx_request_screen_shot() via sofa::helper::io, and
+/// reports fatal errors and aborts.
+bgfx_callback_interface_t* bgfxCallback();
 
 } // namespace sofaglfw::render
