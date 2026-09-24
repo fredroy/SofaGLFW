@@ -87,6 +87,7 @@ private:
     std::string m_currentBackgroundFilename{};
     bgfx_program_handle_t m_bgProgram{UINT16_MAX};
     bgfx_uniform_handle_t m_bgTexUniform{UINT16_MAX};
+    bool m_bgProgramTried{false}; ///< loaded once per context: a missing shader is not retried every frame
 };
 
 } // namespace sofaglfw::render
