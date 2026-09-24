@@ -98,6 +98,24 @@ void ImGuiPlatformBGFX::renderDrawData(ImDrawData* drawData)
 
 void ImGuiPlatformBGFX::shutdown()
 {
+    // Complete the screenshots requested just before closing ("save, then quit"): a
+    // read-back writes into m_readbackData when bgfx next renders, at the latest in
+    // bgfx_shutdown, after this platform is destroyed. It takes a couple of frames.
+    if (bgfxplugin::context::isAlive())
+    {
+        for (int frame = 0; frame < 8 && (m_readbackPending || !m_screenshotQueue.empty()); ++frame)
+            pumpScreenshot(bgfx_frame(false));
+        if (!m_screenshotQueue.empty() || m_readbackPending)
+            msg_warning("ImGuiPlatformBGFX") << "Screenshots requested before closing were not saved.";
+    }
+    if (m_readbackPending)
+    {
+        // Still in flight: keep its buffer alive for bgfx to write into.
+        static std::vector<std::vector<uint8_t>> s_inFlightReadbacks;
+        s_inFlightReadbacks.push_back(std::move(m_readbackData));
+        m_readbackPending = false;
+    }
+
     // Normally runs before the backend shuts bgfx down; after that, the handles are gone.
     destroySceneFB();
     destroyReadbackTexture();
