@@ -180,7 +180,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         drawTool->setCameraPosition(camera->getPosition());
         bool isOrtho = (camera->getCameraType() == sofa::core::visual::VisualParams::ORTHOGRAPHIC_TYPE);
         drawTool->setScreenParams(static_cast<float>(width), static_cast<float>(height), projY5, isOrtho);
-        drawTool->setFramebufferSize(static_cast<uint16_t>(fbWidth), static_cast<uint16_t>(fbHeight), yscale);
+        drawTool->setContentScale(yscale);
         drawTool->setViewportOrigin(vpX, vpY);
         drawTool->setBackgroundColor(background);
         drawTool->setOverlayViews(kFirstOverlayView, kOverlayViewCount);
