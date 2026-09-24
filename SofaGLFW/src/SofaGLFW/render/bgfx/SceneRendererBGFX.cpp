@@ -243,8 +243,9 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
     if (!background.texture || !background.texture->isValid())
         return false;
 
-    if (m_bgProgram.idx == UINT16_MAX)
+    if (!m_bgProgramTried)
     {
+        m_bgProgramTried = true;
         // Installed next to this library, else in the build tree.
         static const int anchor = 0;
         static const std::string shadersDir = bgfxplugin::findDataDirectory(
@@ -331,8 +332,10 @@ void SceneRendererBGFX::releaseResources()
     {
         m_bgProgram.idx = UINT16_MAX;
         m_bgTexUniform.idx = UINT16_MAX;
+        m_bgProgramTried = false;
         return;
     }
+    m_bgProgramTried = false;
 
     if (m_bgProgram.idx != UINT16_MAX)
     {
