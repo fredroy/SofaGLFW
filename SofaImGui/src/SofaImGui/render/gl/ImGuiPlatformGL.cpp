@@ -152,9 +152,18 @@ void ImGuiPlatformGL::releaseMsaaTarget()
 
 bool ImGuiPlatformGL::ensureMsaaTarget(unsigned int width, unsigned int height, int samples)
 {
-    GLint maxSamples = 0;
-    glGetIntegerv(GL_MAX_SAMPLES_EXT, &maxSamples);
-    samples = std::min(samples, int(maxSamples));
+    // GL_MAX_SAMPLES_EXT is queried once, and only with MSAA on: without
+    // EXT_framebuffer_multisample it is an invalid enum, and the GL error left pending
+    // would be reported by the next glGetError of a scene component.
+    if (samples >= 2 && m_maxSamples < 0)
+    {
+        GLint maxSamples = 0;
+        glGetIntegerv(GL_MAX_SAMPLES_EXT, &maxSamples);
+        if (glGetError() != GL_NO_ERROR)
+            maxSamples = 0;
+        m_maxSamples = maxSamples;
+    }
+    samples = std::min(samples, std::max(m_maxSamples, 0));
     if (samples < 2 || m_msaaFailed)
     {
         releaseMsaaTarget();
