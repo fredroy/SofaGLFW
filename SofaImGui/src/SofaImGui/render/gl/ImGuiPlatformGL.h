@@ -76,6 +76,7 @@ private:
     std::pair<unsigned int, unsigned int> m_msaaSize{0, 0};
     bool m_msaaActive{false}; ///< the current scene is drawn into m_msaaFbo
     bool m_msaaFailed{false}; ///< incomplete multisampled FBO: not retried
+    int m_maxSamples{-1};     ///< GL_MAX_SAMPLES_EXT, queried on first use (0: unsupported)
 
     static inline constexpr int s_NB_PBOS = 2;
     GLuint m_pbos[s_NB_PBOS]{0, 0};
