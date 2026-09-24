@@ -310,6 +310,9 @@ void ImGuiGUIEngine::resetCounter()
 
 void ImGuiGUIEngine::openFile(sofaglfw::SofaGLFWBaseGUI* baseGUI, sofa::core::sptr<sofa::simulation::Node>& groot)
 {
+    if (isTerminated())
+        return; // the file dialog library is shut down with the engine
+
     simulation::SceneLoaderFactory::SceneLoaderList* loaders =simulation::SceneLoaderFactory::getInstance()->getEntries();
     std::vector<std::pair<std::string, std::string> > filterList;
     filterList.reserve(loaders->size());
@@ -1004,12 +1007,18 @@ void ImGuiGUIEngine::terminate()
 
 bool ImGuiGUIEngine::dispatchMouseEvents()
 {
+    // File > Exit terminates the engine (and ImGui's context) during a frame: the
+    // events GLFW polls afterwards, in the same loop pass, must not reach ImGui.
+    if (isTerminated())
+        return false;
     return !ImGui::GetIO().WantCaptureMouse || isMouseOnViewport;
 }
 
 void ImGuiGUIEngine::contentScaleChanged(float xscale, float yscale)
 {
     SOFA_UNUSED(xscale);
+    if (isTerminated())
+        return; // no ImGui context any more (see dispatchMouseEvents)
     loadFont(yscale);
 }
 
