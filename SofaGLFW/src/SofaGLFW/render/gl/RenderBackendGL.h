@@ -47,7 +47,6 @@ public:
     void configureVisualParams() override;
     void registerVisualModelAliases() override;
 
-    bool supportsMultiViewport() const override { return true; }
     bool needsGlfwContext() const override { return true; }
     bool supportsVideoCapture() const override { return true; }
 

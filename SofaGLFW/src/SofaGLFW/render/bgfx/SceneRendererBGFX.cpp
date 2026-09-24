@@ -24,7 +24,7 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#include <bgfx/bgfx.h>
+#include <bgfx/c99/bgfx.h>
 #include <bx/math.h>
 #include <BGFXPlugin/DrawToolBGFX.h>
 #include <BGFXPlugin/BGFXShaderUtils.h>
@@ -94,15 +94,11 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     const uint16_t viewOrder[] = { kViewBackground, kViewScene, kViewTransparent };
     bgfx_set_view_order(0, 3, viewOrder);
 
-    // Use viewport dimensions as the render target size (works for both backbuffer and offscreen FB)
-    const int fbWidth = width;
-    const int fbHeight = height;
-
     // View 0: clear entire render target + optional background texture
     bgfx_set_view_rect(kViewBackground, 0, 0, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewBackground, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, clearColor, 1.0f, 0);
 
-    if (!drawBackgroundImage(0, 0, width, height, fbWidth, fbHeight, xscale, yscale))
+    if (!drawBackgroundImage(width, height, xscale, yscale))
         bgfx_touch(kViewBackground);
 
     // draw the scene
@@ -150,7 +146,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         }
 
         // OpenGL projection maps depth to [-1,1]; remap to [0,1] for non-GL backends (Metal/D3D)
-        if (!bgfx::getCaps()->homogeneousDepth)
+        if (!bgfx_get_caps()->homogeneousDepth)
         {
             proj[2]  = proj[2]  * 0.5f + proj[3]  * 0.5f;
             proj[6]  = proj[6]  * 0.5f + proj[7]  * 0.5f;
@@ -230,8 +226,7 @@ void SceneRendererBGFX::clearBackgroundImage()
     m_currentBackgroundFilename.clear();
 }
 
-bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH, int fbW, int fbH,
-                                            float xscale, float yscale)
+bool SceneRendererBGFX::drawBackgroundImage(uint16_t width, uint16_t height, float xscale, float yscale)
 {
     if (m_currentBackgroundFilename.empty())
         return false;
@@ -250,7 +245,7 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
         static const int anchor = 0;
         static const std::string shadersDir = bgfxplugin::findDataDirectory(
             &anchor, "share/sofa/SofaGLFW/shaders", SOFAGLFW_SHADERS_DIR);
-        m_bgProgram = bgfxplugin::loadProgram("vs_imgui", "fs_imgui", shadersDir);
+        m_bgProgram = bgfxplugin::loadProgram("vs_background", "fs_background", shadersDir);
         m_bgTexUniform = bgfx_create_uniform("s_texColor", BGFX_UNIFORM_TYPE_SAMPLER, 1);
     }
 
@@ -264,10 +259,10 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
         uint32_t col;
     };
 
-    const float x0 = static_cast<float>(vpX);
-    const float y0 = static_cast<float>(vpY);
-    const float x1 = static_cast<float>(vpX + vpW);
-    const float y1 = static_cast<float>(vpY + vpH);
+    const float x0 = 0.0f;
+    const float y0 = 0.0f;
+    const float x1 = static_cast<float>(width);
+    const float y1 = static_cast<float>(height);
 
     float uMax = 1.0f;
     float vMax = 1.0f;
@@ -277,9 +272,12 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
         const float texH = static_cast<float>(img->getHeight());
         if (texW > 0.0f && texH > 0.0f)
         {
-            // One texel per logical pixel, like the GL backend, whatever the content scale.
-            uMax = static_cast<float>(vpW) / (texW * xscale);
-            vMax = static_cast<float>(vpH) / (texH * yscale);
+            // One texel per window point, whatever the content scale, as the rest of
+            // the bgfx rendering is sized in points. This matches the GL backend in
+            // SofaImGui (scene target in window units); with the plain GLFW GUI, GL
+            // works in framebuffer pixels, so its tiles are smaller on HiDPI screens.
+            uMax = static_cast<float>(width) / (texW * xscale);
+            vMax = static_cast<float>(height) / (texH * yscale);
         }
     }
 
@@ -310,9 +308,9 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
     float view[16];
     bx::mtxIdentity(view);
     float proj[16];
-    const bool homogeneousDepth = bgfx::getCaps()->homogeneousDepth;
-    bx::mtxOrtho(proj, 0.0f, static_cast<float>(fbW), static_cast<float>(fbH), 0.0f, 0.0f, 1.0f, 0.0f, homogeneousDepth);
-    bgfx_set_view_transform(0, view, proj);
+    const bool homogeneousDepth = bgfx_get_caps()->homogeneousDepth;
+    bx::mtxOrtho(proj, 0.0f, x1, y1, 0.0f, 0.0f, 1.0f, 0.0f, homogeneousDepth);
+    bgfx_set_view_transform(kViewBackground, view, proj);
 
     bgfx_set_transient_vertex_buffer(0, &tvb, 0, 4);
     bgfx_set_transient_index_buffer(&tib, 0, 6);
@@ -320,7 +318,7 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t
     background.texture->bind(0, m_bgTexUniform);
 
     bgfx_set_state(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A, 0);
-    bgfx_submit(0, m_bgProgram, 0, BGFX_DISCARD_ALL);
+    bgfx_submit(kViewBackground, m_bgProgram, 0, BGFX_DISCARD_ALL);
     return true;
 }
 

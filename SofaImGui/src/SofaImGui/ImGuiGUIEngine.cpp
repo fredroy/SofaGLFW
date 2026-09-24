@@ -200,7 +200,6 @@ void ImGuiGUIEngine::initBackend(GLFWwindow* glfwWindow)
         glfwGetWindowContentScale(glfwWindow, &xscale, &yscale);
         int logW = static_cast<int>(w / xscale);
         int logH = static_cast<int>(h / yscale);
-        m_viewportRect = {0, 0, w, h};
         m_viewportWindowSize = {static_cast<float>(logW), static_cast<float>(logH)};
     }
 
@@ -440,24 +439,6 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
     ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f),
                      m_platform ? m_platform->dockspaceFlags() : ImGuiDockNodeFlags_None);
-
-    {
-        float xscale = 1.0f, yscale = 1.0f;
-        GLFWwindow* glfwWin = static_cast<GLFWwindow*>(ImGui::GetMainViewport()->PlatformHandle);
-        if (glfwWin)
-            glfwGetWindowContentScale(glfwWin, &xscale, &yscale);
-        m_viewportRect = {
-            0, 0,
-            static_cast<int>(m_viewportWindowSize.first * xscale),
-            static_cast<int>(m_viewportWindowSize.second * yscale)
-        };
-        m_viewportScreenRect = {
-            static_cast<int>(lastViewPortPos.x()),
-            static_cast<int>(lastViewPortPos.y()),
-            static_cast<int>(m_viewportWindowSize.first),
-            static_cast<int>(m_viewportWindowSize.second)
-        };
-    }
 
     static constexpr auto windowNameViewport = ICON_FA_DICE_D6 "  Viewport";
     static constexpr auto windowNamePerformances = ICON_FA_CHART_LINE "  Performances";
@@ -885,14 +866,11 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
 
     // Present the frame through the render backend, then let the platform
     // advance any pending asynchronous screenshot read-back.
+    uint32_t presentedFrame = 0;
     if (auto* backend = baseGUI->getRenderBackend())
-        m_lastPresentedFrame = backend->present(
-            static_cast<GLFWwindow*>(ImGui::GetMainViewport()->PlatformHandle));
+        presentedFrame = backend->present(static_cast<GLFWwindow*>(ImGui::GetMainViewport()->PlatformHandle));
     if (m_platform)
-        m_platform->pumpScreenshot(m_lastPresentedFrame);
-
-    m_frameCount++;
-
+        m_platform->pumpScreenshot(presentedFrame);
 }
 
 void ImGuiGUIEngine::endFrame()
@@ -1020,16 +998,16 @@ void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
 {
     SOFA_UNUSED(glfwWindow);
 
-    // Bind the offscreen scene target (sized in logical pixels; the backend
-    // applies content scaling internally where needed).
+    // Bind the offscreen scene target (sized in window units; the backend chooses
+    // its pixel size, see IImGuiPlatform::beginSceneTarget).
     const int logicalW = std::max(1, static_cast<int>(m_viewportWindowSize.first));
     const int logicalH = std::max(1, static_cast<int>(m_viewportWindowSize.second));
 
     if (m_platform)
         m_platform->beginSceneTarget(logicalW, logicalH, m_sceneMsaa);
 
-    // The scene is rendered using logical-pixel viewport; the scene renderer
-    // applies content scale to reach framebuffer pixels where relevant.
+    // The scene viewport is in window units too; the bgfx scene renderer applies
+    // the framebuffer scale.
     sofa::core::visual::VisualParams::defaultInstance()->viewport() = {
         0, 0, logicalW, logicalH};
 }

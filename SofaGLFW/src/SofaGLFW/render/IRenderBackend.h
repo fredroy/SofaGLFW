@@ -75,8 +75,8 @@ public:
 
     /// Size of the VisualParams viewport this backend's scene renderer expects when
     /// drawing straight into @p window's backbuffer (no GUI offscreen target):
-    /// framebuffer pixels for OpenGL, logical pixels for bgfx, whose scene renderer
-    /// applies the window content scale itself.
+    /// framebuffer pixels for OpenGL, window units for bgfx, whose scene renderer
+    /// applies the framebuffer scale itself (SceneRendererBGFX::framebufferScale).
     virtual sofa::type::Vec2i backbufferViewportSize(GLFWwindow* window) const = 0;
 
     /// Synchronous read-back of the backbuffer (RGBA8, bottom row first), for video
@@ -94,9 +94,6 @@ public:
     virtual void registerVisualModelAliases() = 0;
 
     // --- capabilities -------------------------------------------------------
-
-    /// True if ImGui multi-viewport (ImGuiConfigFlags_ViewportsEnable) is usable.
-    virtual bool supportsMultiViewport() const = 0;
 
     /// GLFW client-API hint: true if the window needs an OpenGL context created
     /// by GLFW; false if the backend manages the surface itself (bgfx).

@@ -20,7 +20,7 @@
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
 #include <SofaGLFW/render/bgfx/RenderBackendBGFX.h>
-#include <SofaGLFW/render/bgfx/BgfxScreenshotCallback.h>
+#include <SofaGLFW/render/bgfx/BgfxCallback.h>
 #include <SofaGLFW/render/bgfx/BgfxNativeWindow.h>
 #include <SofaGLFW/render/RenderBackendFactory.h>
 #include <SofaGLFW/render/bgfx/SceneRendererBGFX.h>
@@ -35,7 +35,6 @@
 #include <cstdlib>
 #include <string>
 
-#include <bgfx/bgfx.h>
 
 #include <sofa/core/ObjectFactory.h>
 #include <sofa/core/visual/VisualParams.h>
@@ -122,9 +121,6 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
 
     m_window = window;
 
-    m_debug = BGFX_DEBUG_TEXT;
-    // Keep the vsync/MSAA flags set before init (the persisted preferences).
-    m_reset |= BGFX_RESET_HIDPI;
 
     bgfx_init_t init;
     bgfx_init_ctor(&init);
@@ -152,7 +148,7 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     init.swapChain.height = static_cast<uint32_t>(fbHeight);
     init.swapChain.flags = m_reset & kSwapChainFlags;
     init.reset = m_reset & ~kSwapChainFlags;
-    init.callback = bgfxScreenshotCallback();
+    init.callback = bgfxCallback();
 
     // Per-frame transient geometry pool. bgfx's defaults (6 MB vertices, 2 MB indices)
     // are sized for small UIs; DrawToolBGFX streams all debug geometry through it
@@ -175,19 +171,14 @@ bool RenderBackendBGFX::initEngine(GLFWwindow* window, uint32_t width, uint32_t 
     bgfxplugin::context::markInitialized();
     msg_info("RenderBackendBGFX") << "bgfx renderer: " << bgfx_get_renderer_name(bgfx_get_renderer_type());
 
-    bgfx_set_debug(m_debug, BGFX_INVALID_HANDLE, 0);
+    bgfx_set_debug(BGFX_DEBUG_TEXT, BGFX_INVALID_HANDLE, 0);
     bgfx_set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
     return true;
 }
 
 void RenderBackendBGFX::resize(uint32_t width, uint32_t height)
 {
-    if (!m_initialized)
-        return;
-    m_swapChain.width = width;
-    m_swapChain.height = height;
-    m_swapChain.flags = m_reset & kSwapChainFlags;
-    bgfx_reset(m_reset & ~kSwapChainFlags, &m_swapChain);
+    resetSwapChain(width, height);
 }
 
 uint32_t RenderBackendBGFX::present(GLFWwindow* window)
@@ -221,7 +212,7 @@ bool RenderBackendBGFX::requestBackbufferScreenshot(GLFWwindow* window, const st
 
 sofa::type::Vec2i RenderBackendBGFX::backbufferViewportSize(GLFWwindow* window) const
 {
-    // Logical pixels: SceneRendererBGFX applies the window content scale.
+    // Window units: SceneRendererBGFX applies the framebuffer scale.
     int width = 0, height = 0;
     glfwGetWindowSize(window, &width, &height);
     return { width, height };
@@ -300,8 +291,15 @@ void RenderBackendBGFX::applyReset()
         return;
     int w, h;
     glfwGetFramebufferSize(m_window, &w, &h); // pixels, as initEngine
-    m_swapChain.width = static_cast<uint32_t>(w);
-    m_swapChain.height = static_cast<uint32_t>(h);
+    resetSwapChain(static_cast<uint32_t>(w), static_cast<uint32_t>(h));
+}
+
+void RenderBackendBGFX::resetSwapChain(uint32_t width, uint32_t height)
+{
+    if (!m_initialized)
+        return;
+    m_swapChain.width = width;
+    m_swapChain.height = height;
     m_swapChain.flags = m_reset & kSwapChainFlags;
     bgfx_reset(m_reset & ~kSwapChainFlags, &m_swapChain);
 }

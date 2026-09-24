@@ -62,6 +62,9 @@ public:
 
 private:
     void recreateSceneFB(uint16_t width, uint16_t height, int msaa);
+    /// Destroy (while bgfx runs) and forget the scene target, or the read-back texture.
+    void destroySceneFB();
+    void destroyReadbackTexture();
     void processScreenshotReadback();
 
     bgfx_frame_buffer_handle_t m_sceneFB{UINT16_MAX};
@@ -81,7 +84,6 @@ private:
     /// (m_readbackPath), and a request made meanwhile waits for it.
     std::deque<std::string> m_screenshotQueue;
     std::string m_readbackPath;
-    uint32_t m_lastPresentedFrame{0};
     GLFWwindow* m_window{nullptr};
 };
 

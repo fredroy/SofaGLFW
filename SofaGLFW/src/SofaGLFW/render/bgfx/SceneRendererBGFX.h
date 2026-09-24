@@ -34,10 +34,11 @@
 namespace sofaglfw::render
 {
 
-/// bgfx implementation of ISceneRenderer: two-view (background + scene) draw
-/// with camera matrix setup, depth-range remap for non-GL backends, and a
-/// textured background quad rendered from a transient buffer.
-class SceneRendererBGFX : public ISceneRenderer, public bgfxplugin::GpuResourceOwner
+/// bgfx implementation of ISceneRenderer: the background (color, gradient or image
+/// quad), the scene, its transparent models and DrawToolBGFX's overlays in their own
+/// views (below), with the camera matrices and the depth-range remap of non-GL
+/// renderers.
+class SOFAGLFW_API SceneRendererBGFX : public ISceneRenderer, public bgfxplugin::GpuResourceOwner
 {
 public:
     /// bgfx views of the scene, all rendered into the scene target, in this order:
@@ -73,8 +74,9 @@ public:
 private:
     /// The rect is in framebuffer pixels; the scale converts it back to logical pixels
     /// so the image tiles at one texel per logical pixel.
-    bool drawBackgroundImage(uint16_t vpX, uint16_t vpY, uint16_t vpW, uint16_t vpH,
-                             int fbW, int fbH, float xscale, float yscale);
+    /// The background image quad over a (width, height) render target, in the
+    /// background view; false when there is no image (or program) to draw.
+    bool drawBackgroundImage(uint16_t width, uint16_t height, float xscale, float yscale);
 
     struct Background
     {
