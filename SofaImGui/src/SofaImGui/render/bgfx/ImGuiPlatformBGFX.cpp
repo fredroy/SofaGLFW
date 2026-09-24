@@ -221,7 +221,7 @@ ImGuiDockNodeFlags ImGuiPlatformBGFX::dockspaceFlags() const
 
 void ImGuiPlatformBGFX::requestScreenshot(const std::string& path)
 {
-    m_pendingScreenshotPath = path;
+    m_screenshotQueue.push_back(path);
 }
 
 void ImGuiPlatformBGFX::pumpScreenshot(uint32_t presentedFrame)
@@ -229,8 +229,11 @@ void ImGuiPlatformBGFX::pumpScreenshot(uint32_t presentedFrame)
     m_lastPresentedFrame = presentedFrame;
 
     // Kick off a read-back once a screenshot is requested and none is in flight.
-    if (!m_pendingScreenshotPath.empty() && m_sceneFBTexture.idx != UINT16_MAX && !m_readbackPending)
+    if (!m_screenshotQueue.empty() && m_sceneFBTexture.idx != UINT16_MAX && !m_readbackPending)
     {
+        m_readbackPath = m_screenshotQueue.front();
+        m_screenshotQueue.pop_front();
+
         if (m_readbackTexture.idx == UINT16_MAX
             || m_readbackWidth != m_sceneFBWidth
             || m_readbackHeight != m_sceneFBHeight)
@@ -293,8 +296,8 @@ void ImGuiPlatformBGFX::processScreenshotReadback()
         memcpy(dst + row * pitch, src + srcRow * pitch, pitch);
     }
 
-    image.save(m_pendingScreenshotPath.c_str(), 90);
-    m_pendingScreenshotPath.clear();
+    image.save(m_readbackPath.c_str(), 90);
+    m_readbackPath.clear();
     m_readbackData.clear();
 }
 
