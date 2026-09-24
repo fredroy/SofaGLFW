@@ -148,10 +148,13 @@ void ImGui_Implbgfx_DestroyFontsTexture()
 bool ImGui_Implbgfx_CreateDeviceObjects()
 {
     // The ImGui shaders are compiled by the build with the pinned bgfx's shaderc (see
-    // SofaImGui/CMakeLists.txt) and loaded like the other SofaImGui shaders. Precompiled
+    // SofaImGui/CMakeLists.txt), and installed next to this library. Precompiled
     // embedded copies would be rejected as soon as bgfx changes its shader binary format.
+    static const int anchor = 0;
+    static const std::string shadersDir = bgfxplugin::findDataDirectory(
+        &anchor, "share/sofa/SofaImGui/shaders", SOFAIMGUI_SHADERS_DIR);
     const bgfx_program_handle_t program = bgfxplugin::loadProgram(
-        "vs_ocornut_imgui", "fs_ocornut_imgui", SOFAIMGUI_SHADERS_DIR);
+        "vs_ocornut_imgui", "fs_ocornut_imgui", shadersDir);
     g_ShaderHandle.idx = program.idx;
 
     g_VertexLayout
