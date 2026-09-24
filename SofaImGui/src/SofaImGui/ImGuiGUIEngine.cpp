@@ -944,16 +944,16 @@ void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
 {
     SOFA_UNUSED(glfwWindow);
 
-    // Bind the offscreen scene target (sized in logical pixels; the backend
-    // applies content scaling internally where needed).
+    // Bind the offscreen scene target (sized in window units; the backend chooses
+    // its pixel size, see IImGuiPlatform::beginSceneTarget).
     const int logicalW = std::max(1, static_cast<int>(m_viewportWindowSize.first));
     const int logicalH = std::max(1, static_cast<int>(m_viewportWindowSize.second));
 
     if (m_platform)
         m_platform->beginSceneTarget(logicalW, logicalH, m_sceneMsaa);
 
-    // The scene is rendered using logical-pixel viewport; the scene renderer
-    // applies content scale to reach framebuffer pixels where relevant.
+    // The scene viewport is in window units too; the bgfx scene renderer applies
+    // the framebuffer scale.
     sofa::core::visual::VisualParams::defaultInstance()->viewport() = {
         0, 0, logicalW, logicalH};
 }

@@ -12,18 +12,8 @@ sofa_find_package(BGFXPlugin QUIET)
 sofa_find_package(Sofa.GL QUIET)
 
 # Both rendering backends can be compiled into the same library and selected at
-# runtime. At least one must be available.
-if(BGFXPlugin_FOUND)
-    set(SOFAGLFW_HAVE_BGFXPLUGIN 1)
-else()
-    set(SOFAGLFW_HAVE_BGFXPLUGIN 0)
-endif()
-if(Sofa.GL_FOUND)
-    set(SOFAGLFW_HAVE_SOFA_GL 1)
-else()
-    set(SOFAGLFW_HAVE_SOFA_GL 0)
-endif()
-
+# runtime (sofa_find_package sets SOFAGLFW_HAVE_BGFXPLUGIN and SOFAGLFW_HAVE_SOFA_GL).
+# At least one must be available.
 if(NOT BGFXPlugin_FOUND AND NOT Sofa.GL_FOUND)
     message(FATAL_ERROR "${PROJECT_NAME}: neither BGFXPlugin nor Sofa.GL found. "
         "At least one rendering backend is required.")
@@ -136,7 +126,7 @@ if(BGFXPlugin_FOUND)
     message("${PROJECT_NAME}: BGFXPlugin (bgfx) rendering backend enabled.")
     target_link_libraries(${PROJECT_NAME} PUBLIC BGFXPlugin)
     # The background image shaders, compiled with BGFXPlugin's shaderc. The build
-    # tree's copy is used until they are installed (SceneRendererBGFX::drawBackground).
+    # tree's copy is used until they are installed (SceneRendererBGFX::drawBackgroundImage).
     set(SOFAGLFW_SHADERS_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
     bgfxplugin_add_shaders(${PROJECT_NAME}
         SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources/shaders/src"

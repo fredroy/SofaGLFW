@@ -161,7 +161,8 @@ void RenderBackendGL::setVsync(bool enabled)
 
 void RenderBackendGL::setMsaa(int level)
 {
-    // MSAA is selected at window-creation time via GLFW_SAMPLES; store for query.
+    // Read back by the GUI: ImGuiPlatformGL multisamples its scene target with it.
+    // (The window's own samples, GLFW_SAMPLES, are chosen when it is created.)
     m_msaa = level;
 }
 
