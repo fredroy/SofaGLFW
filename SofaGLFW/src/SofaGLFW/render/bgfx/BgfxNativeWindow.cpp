@@ -30,17 +30,14 @@
 // GLFW >= 3.4 picks X11 or Wayland at runtime (SOFAGLFW_USEX11 forces X11): both
 // are exposed, Wayland when its client headers are available (glfw3native.h needs them).
 #    define GLFW_EXPOSE_NATIVE_X11
-#    define GLFW_EXPOSE_NATIVE_GLX
 #    if __has_include(<wayland-client.h>)
 #        define GLFW_EXPOSE_NATIVE_WAYLAND
 #        define SOFAGLFW_BGFX_WAYLAND 1
 #    endif
 #elif BX_PLATFORM_OSX
 #    define GLFW_EXPOSE_NATIVE_COCOA
-#    define GLFW_EXPOSE_NATIVE_NSGL
 #elif BX_PLATFORM_WINDOWS
 #    define GLFW_EXPOSE_NATIVE_WIN32
-#    define GLFW_EXPOSE_NATIVE_WGL
 #endif
 
 #include <GLFW/glfw3native.h>

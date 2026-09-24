@@ -49,7 +49,6 @@ public:
     void configureVisualParams() override;
     void registerVisualModelAliases() override;
 
-    bool supportsMultiViewport() const override { return false; }
     bool needsGlfwContext() const override { return false; }
     /// bgfx reads textures back asynchronously (a few frames later): not yet wired to video.
     bool supportsVideoCapture() const override { return false; }
@@ -72,8 +71,9 @@ private:
     bgfx_renderer_type m_type = bgfx_renderer_type::BGFX_RENDERER_TYPE_COUNT; // auto
 #endif
 
-    uint32_t m_debug = BGFX_DEBUG_TEXT;
-    uint32_t m_reset = BGFX_RESET_VSYNC | BGFX_RESET_HIDPI;
+    /// Reset flags: vsync and MSAA follow the settings (setVsync/setMsaa, before
+    /// initEngine), HiDPI back buffers always.
+    uint32_t m_reset = BGFX_RESET_HIDPI;
     /// Main window swap chain description (bgfx API >= 160); kept so resets only touch size/flags.
     bgfx_swap_chain_t m_swapChain{};
     bool m_initialized{false};

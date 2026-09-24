@@ -27,7 +27,6 @@
 
 #include <backends/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
-#include <bgfx/bgfx.h>
 
 #include <sofa/helper/io/STBImage.h>
 #include <sofa/helper/logging/Messaging.h>
@@ -226,8 +225,6 @@ void ImGuiPlatformBGFX::requestScreenshot(const std::string& path)
 
 void ImGuiPlatformBGFX::pumpScreenshot(uint32_t presentedFrame)
 {
-    m_lastPresentedFrame = presentedFrame;
-
     // Kick off a read-back once a screenshot is requested and none is in flight.
     if (!m_screenshotQueue.empty() && m_sceneFBTexture.idx != UINT16_MAX && !m_readbackPending)
     {
@@ -305,7 +302,7 @@ sofa::type::Vec2i ImGuiPlatformBGFX::readSceneTargetPixels(std::vector<uint8_t>&
 {
     // bgfx read-back is asynchronous; synchronous per-frame capture (for video
     // recording) is not supported on this backend.
-    SOFA_UNUSED(pixels);
+    pixels.clear();
     return {0, 0};
 }
 

@@ -27,9 +27,6 @@
 #include <GLFW/glfw3.h>
 #include <sofa/helper/logging/Messaging.h>
 
-#include <sofa/helper/io/File.h>
-#include <sofa/helper/io/STBImage.h>
-
 namespace sofaglfw
 {
 
