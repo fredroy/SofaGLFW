@@ -27,6 +27,7 @@
 #include <sofa/component/setting/ViewerSetting.h>
 #include <sofa/gui/common/ArgumentParser.h>
 #include <sofa/type/hardening.h>
+#include <SofaGLFW/render/RenderBackendFactory.h>
 
 using namespace sofa;
 
@@ -38,6 +39,18 @@ sofa::gui::common::ArgumentParser* SofaGLFWGUI::s_argumentParser = nullptr;
 bool SofaGLFWGUI::init()
 {
     return m_baseGUI.init();
+}
+
+void SofaGLFWGUI::preferRenderAPIFor(sofa::simulation::Node* groot)
+{
+    // Without the OpenGL backend, or when SOFA_RENDER_API names another one, createWindow()
+    // reports the scene.
+    if (!SofaGLFWBaseGUI::hasOpenGLComponents(groot)
+        || render::RenderBackendFactory::getInstance().resolve(render::RenderAPI::OpenGL) != render::RenderAPI::OpenGL)
+        return;
+    msg_info("SofaGLFWGUI") << "The scene holds OpenGL components (Sofa.GL) created before the GUI: "
+                               "using the OpenGL rendering backend.";
+    m_baseGUI.setPreferredRenderAPI(render::RenderAPI::OpenGL);
 }
 
 int SofaGLFWGUI::mainLoop()
@@ -212,6 +225,7 @@ sofa::gui::common::BaseGUI* SofaGLFWGUI::CreateGUI(const char* name, sofa::simul
 {
     SofaGLFWGUI::mGuiName = name;
     auto* gui = new SofaGLFWGUI();
+    gui->preferRenderAPIFor(groot.get());
     if (!gui->init())
     {
         return nullptr;

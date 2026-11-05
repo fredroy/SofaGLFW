@@ -44,6 +44,7 @@ sofa::gui::common::BaseGUI* ImGuiGUI::CreateGUI(const char* name, sofa::simulati
 {
     ImGuiGUI::mGuiName = name;
     auto* gui = new ImGuiGUI();
+    gui->preferRenderAPIFor(groot.get());
 
     if (!gui->init())
     {

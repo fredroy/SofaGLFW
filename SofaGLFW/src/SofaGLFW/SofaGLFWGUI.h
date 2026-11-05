@@ -44,6 +44,9 @@ public:
     ~SofaGLFWGUI() override = default;
 
     bool init();
+    /// Before init(): picks the OpenGL backend for a scene built before the GUI that holds
+    /// OpenGL components (Sofa.GL), which the bgfx backend cannot run.
+    void preferRenderAPIFor(sofa::simulation::Node* groot);
     /// BaseGUI API
     int mainLoop() override;
     void redraw() override;

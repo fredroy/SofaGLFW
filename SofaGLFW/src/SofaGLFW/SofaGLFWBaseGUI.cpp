@@ -155,7 +155,7 @@ bool SofaGLFWBaseGUI::init(int nbMSAASamples)
     {
         // Resolve and create the rendering backend at runtime.
         auto& factory = render::RenderBackendFactory::getInstance();
-        m_renderAPI = factory.resolve(render::RenderAPI::Auto);
+        m_renderAPI = factory.resolve(m_preferredRenderAPI);
         m_backend = factory.createBackend(m_renderAPI);
 
         if (!m_backend)
@@ -324,6 +324,19 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
     if (this->groot == nullptr)
     {
         msg_error("SofaGLFWBaseGUI") << "No simulation root has been defined. Quitting.";
+        return false;
+    }
+
+    // Sofa.GL components created before init() (a scene built, then the GUI created, as
+    // SofaPython3 scripts do) were not replaced by bgfx's: they would call OpenGL without
+    // an OpenGL context. SofaGLFWGUI::CreateGUI picks the OpenGL backend for such a scene
+    // when it can; otherwise refuse it.
+    if (m_renderAPI == render::RenderAPI::BGFX && hasOpenGLComponents(this->groot.get()))
+    {
+        msg_error("SofaGLFWBaseGUI") << "The scene holds OpenGL components (Sofa.GL) created before the GUI, "
+                                        "which the bgfx rendering backend cannot run: no window is opened. "
+                                        "Create the GUI before loading the scene, or use the OpenGL backend "
+                                        "(SOFA_RENDER_API=opengl).";
         return false;
     }
 
@@ -712,6 +725,19 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
     }
 
     return currentNbIterations;
+}
+
+bool SofaGLFWBaseGUI::hasOpenGLComponents(sofa::simulation::Node* root)
+{
+    if (!root)
+        return false;
+    std::vector<sofa::core::objectmodel::BaseObject*> objects;
+    root->getTreeObjects<sofa::core::objectmodel::BaseObject>(&objects);
+    return std::any_of(objects.begin(), objects.end(), [](const sofa::core::objectmodel::BaseObject* object)
+    {
+        const std::string& ns = object->getClass()->namespaceName;
+        return ns == "sofa::gl" || ns.starts_with("sofa::gl::");
+    });
 }
 
 void SofaGLFWBaseGUI::initVisual()

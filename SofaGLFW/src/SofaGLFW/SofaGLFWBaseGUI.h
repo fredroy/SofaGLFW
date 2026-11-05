@@ -162,6 +162,13 @@ public:
     /// Access to the resolved rendering backend (may be null before init()).
     render::IRenderBackend* getRenderBackend() const { return m_backend.get(); }
     render::RenderAPI getRenderAPI() const { return m_renderAPI; }
+    /// The backend init() picks when SOFA_RENDER_API names none (Auto: bgfx when built).
+    void setPreferredRenderAPI(render::RenderAPI api) { m_preferredRenderAPI = api; }
+
+    /// Whether the scene holds components of the Sofa.GL modules. They call OpenGL: the
+    /// bgfx backend only runs a scene whose GL components it replaced, which it does for
+    /// the components created after init().
+    static bool hasOpenGLComponents(sofa::simulation::Node* root);
 
     void setVsync(bool enabled);
     bool isVsync() const;
@@ -220,6 +227,7 @@ private:
     std::shared_ptr<BaseGUIEngine> m_guiEngine;
 
     render::RenderAPI m_renderAPI{ render::RenderAPI::Auto };
+    render::RenderAPI m_preferredRenderAPI{ render::RenderAPI::Auto };
     std::unique_ptr<render::IRenderBackend> m_backend;
 
     bool m_bVideoRecording {false};
