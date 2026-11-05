@@ -272,7 +272,10 @@ bool SceneRendererBGFX::drawBackgroundImage(uint16_t width, uint16_t height, flo
         const float texH = static_cast<float>(img->getHeight());
         if (texW > 0.0f && texH > 0.0f)
         {
-            // One texel per logical pixel, like the GL backend, whatever the content scale.
+            // One texel per window point, whatever the content scale, as the rest of
+            // the bgfx rendering is sized in points. This matches the GL backend in
+            // SofaImGui (scene target in window units); with the plain GLFW GUI, GL
+            // works in framebuffer pixels, so its tiles are smaller on HiDPI screens.
             uMax = static_cast<float>(width) / (texW * xscale);
             vMax = static_cast<float>(height) / (texH * yscale);
         }
