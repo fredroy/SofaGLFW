@@ -147,6 +147,8 @@ public:
     }
     void moveRayPickInteractor(int eventX, int eventY) override ;
     
+    /// Saves the next frame drawn (the screenshot key: its callback runs after the frame
+    /// was presented, when the back buffer is undefined).
     void saveScreenshot(const std::string& filePath);
 
     void toggleVideoRecording();
@@ -206,6 +208,7 @@ private:
     bool m_bOffscreen{ false };
     bool m_bHideProgressBar{ false };
     std::string m_frameOutputDirectory;
+    std::string m_pendingScreenshotPath;
     std::size_t m_frameCounter{ 0 };
 
     std::unique_ptr<sofa::helper::visual::DrawTool> m_drawTool;

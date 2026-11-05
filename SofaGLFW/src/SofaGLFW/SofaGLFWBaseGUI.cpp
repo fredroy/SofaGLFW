@@ -660,6 +660,12 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                         saveCurrentFrame();
                     }
 
+                    if (!m_pendingScreenshotPath.empty())
+                    {
+                        m_guiEngine->saveNamedScreenshot(this, m_pendingScreenshotPath, -1);
+                        m_pendingScreenshotPath.clear();
+                    }
+
                     m_guiEngine->startFrame(this);
                     m_guiEngine->endFrame();
 
@@ -1414,9 +1420,9 @@ bool SofaGLFWBaseGUI::centerWindow(GLFWwindow* window)
 
 void SofaGLFWBaseGUI::saveScreenshot(const std::string& filePath)
 {
-    // Delegate to the GUI engine's screenshot mechanism (backend-specific,
-    // handled by the ImGui platform). The Null engine defers to itself.
-    m_guiEngine->saveNamedScreenshot(this, filePath, -1);
+    // Taken by runLoop with the next frame, before it is presented, through the GUI
+    // engine's screenshot mechanism (backend-specific).
+    m_pendingScreenshotPath = filePath;
 }
 
 void SofaGLFWBaseGUI::toggleVideoRecording()
