@@ -123,7 +123,10 @@ void ImGuiPlatformGL::renderDrawData(ImDrawData* drawData)
 
 void ImGuiPlatformGL::shutdown()
 {
+    // Every GL object now, while the context is current: the platform itself may be
+    // destroyed after glfwTerminate (the GUI engine outlives a bounded run's loop).
     releaseMsaaTarget();
+    m_fbo.reset();
     if (m_pbosInitialized)
     {
         glDeleteBuffers(s_NB_PBOS, m_pbos);
