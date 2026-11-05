@@ -630,12 +630,9 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
 
                     m_guiEngine->afterDraw();
 
-                    m_guiEngine->startFrame(this);
-                    m_guiEngine->endFrame();
-
-                    m_viewPortHeight = m_vparams->viewport()[3];
-                    m_viewPortWidth = m_vparams->viewport()[2];
-
+                    // Capture the frame before startFrame() presents it: GL reads the
+                    // back buffer, which is undefined after the swap, and bgfx services
+                    // a screenshot request with the frame submitted after it.
                     // Read framebuffer for video recording (only supported by
                     // backends providing synchronous read-back; no-op otherwise)
                     if(this->groot->getAnimate() && this->m_bVideoRecording && m_videoRecorder)
@@ -649,6 +646,12 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     {
                         saveCurrentFrame();
                     }
+
+                    m_guiEngine->startFrame(this);
+                    m_guiEngine->endFrame();
+
+                    m_viewPortHeight = m_vparams->viewport()[3];
+                    m_viewPortWidth = m_vparams->viewport()[2];
                 }
                 else
                 {
