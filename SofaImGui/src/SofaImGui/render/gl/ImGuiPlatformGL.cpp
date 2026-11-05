@@ -255,6 +255,11 @@ void ImGuiPlatformGL::endSceneTarget()
     m_fbo->stop();
 }
 
+bool ImGuiPlatformGL::hasSceneTexture() const
+{
+    return m_fbo && const_cast<sofa::gl::FrameBufferObject*>(m_fbo.get())->getColorTexture() != 0;
+}
+
 ImTextureID ImGuiPlatformGL::sceneTexture() const
 {
     if (!m_fbo)

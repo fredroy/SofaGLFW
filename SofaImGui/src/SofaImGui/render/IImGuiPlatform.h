@@ -75,8 +75,11 @@ public:
     virtual void endSceneTarget() = 0;
 
     /// ImGui texture id referencing the scene target's color attachment, for
-    /// ImGui::Image(). Returns 0 when no valid target exists yet.
+    /// ImGui::Image(). Only meaningful when hasSceneTexture(): 0 can be a valid id
+    /// (bgfx's texture handle 0).
     virtual ImTextureID sceneTexture() const = 0;
+    /// Whether the scene target exists (it may fail to be created, or not exist yet).
+    virtual bool hasSceneTexture() const = 0;
 
     /// True if the scene texture is stored bottom-up and must be shown with a
     /// vertical UV flip: the OpenGL FBO, and bgfx targets on renderers whose origin

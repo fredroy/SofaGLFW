@@ -52,6 +52,7 @@ public:
     void beginSceneTarget(int width, int height, int msaa) override;
     void endSceneTarget() override;
     ImTextureID sceneTexture() const override;
+    bool hasSceneTexture() const override;
     bool sceneTextureFlippedV() const override { return true; }
 
     ImGuiDockNodeFlags dockspaceFlags() const override;
