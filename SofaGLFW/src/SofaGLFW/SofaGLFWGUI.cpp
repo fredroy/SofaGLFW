@@ -47,7 +47,8 @@ int SofaGLFWGUI::mainLoop()
     const std::size_t targetNbIterations = getTargetNbIterations();
     // a bounded run is meant to be computed, as in runSofaGLFW and the batch GUI,
     // and frames are only saved while animating
-    if (targetNbIterations > 0 || !m_baseGUI.getFrameOutputDirectory().empty())
+    if (targetNbIterations > 0 || !m_baseGUI.getFrameOutputDirectory().empty()
+        || !m_baseGUI.getVideoOutputFile().empty())
     {
         m_baseGUI.setSimulationIsRunning(true);
     }
@@ -115,6 +116,16 @@ std::optional<sofa::type::Vec2i> SofaGLFWGUI::getRequestedResolution()
     return resolution;
 }
 
+std::string SofaGLFWGUI::getRequestedVideoOutputFile()
+{
+    std::string filename;
+    if (s_argumentParser)
+    {
+        s_argumentParser->getValueFromKey("save_video", filename);
+    }
+    return filename;
+}
+
 std::size_t SofaGLFWGUI::getTargetNbIterations()
 {
     // '-n'/'--nbIter' is registered by the batch GUI; it is only read here
@@ -171,6 +182,7 @@ void SofaGLFWGUI::setScene(sofa::simulation::NodeSPtr groot, const char* filenam
     const bool interactive = isInteractive();
     const bool offscreen = isOffscreenRequested();
     const std::string frameOutputDirectory = getRequestedFrameOutputDirectory();
+    const std::string videoOutputFile = getRequestedVideoOutputFile();
     if (interactive && offscreen)
     {
         msg_warning("SofaGLFWGUI") << "The '" << mGuiName << "' GUI is interactive: '--offscreen' is ignored.";
@@ -179,6 +191,10 @@ void SofaGLFWGUI::setScene(sofa::simulation::NodeSPtr groot, const char* filenam
     {
         msg_warning("SofaGLFWGUI") << "The '" << mGuiName << "' GUI is interactive: '--save_frames' is ignored.";
     }
+    if (interactive && !videoOutputFile.empty())
+    {
+        msg_warning("SofaGLFWGUI") << "The '" << mGuiName << "' GUI is interactive: '--save_video' is ignored.";
+    }
     m_baseGUI.setOffscreen(!interactive && offscreen);
     m_baseGUI.setFrameOutputDirectory(interactive ? std::string{} : frameOutputDirectory);
     if (const auto resolution = getRequestedResolution())
@@ -186,6 +202,7 @@ void SofaGLFWGUI::setScene(sofa::simulation::NodeSPtr groot, const char* filenam
         m_baseGUI.setWindowWidth((*resolution)[0]);
         m_baseGUI.setWindowHeight((*resolution)[1]);
     }
+    m_baseGUI.setVideoOutputFile(interactive ? std::string{} : videoOutputFile);
     m_baseGUI.createWindow(m_baseGUI.getWindowWidth(), m_baseGUI.getWindowHeight(), std::string("SOFA - " + strFilename).c_str(), m_bCreateWithFullScreen);
 
     // needs to be done after for background
@@ -295,6 +312,11 @@ int SofaGLFWGUI::RegisterGUIParameters(sofa::gui::common::ArgumentParser* argume
         cxxopts::value<std::string>(),
         "resolution",
         "(only glfw) window resolution as WIDTHxHEIGHT, e.g. 1920x1080; overrides the scene's ViewerSetting"
+    );
+    argumentParser->addArgument(
+        cxxopts::value<std::string>(),
+        "save_video",
+        "(only glfw) record a video in the given file, paced on the wall clock as a screen recording"
     );
     return 0;
 }

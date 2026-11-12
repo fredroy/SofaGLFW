@@ -59,6 +59,7 @@ int main(int argc, char** argv)
         ("hideProgressBar", "hide the progress bar of a bounded run", cxxopts::value<bool>()->default_value("false"))
         ("save_frames", "save each rendered frame as a PNG in the given directory", cxxopts::value<std::string>()->default_value(""))
         ("resolution", "window resolution as WIDTHxHEIGHT, e.g. 1920x1080; overrides the scene's ViewerSetting", cxxopts::value<std::string>()->default_value(""))
+        ("save_video", "record a video in the given file, paced on the wall clock as a screen recording", cxxopts::value<std::string>()->default_value(""))
         ("h,help", "print usage")
         ;
 
@@ -90,6 +91,8 @@ int main(int argc, char** argv)
     {
         return 1;
     }
+
+    glfwGUI.setVideoOutputFile(result["save_video"].as<std::string>());
 
     auto nbMSAASamples = result["msaa_samples"].as<unsigned short>();
     if (!glfwGUI.init(nbMSAASamples))
@@ -180,7 +183,7 @@ int main(int argc, char** argv)
     }
 
     // frames are only saved while animating
-    if (!glfwGUI.getFrameOutputDirectory().empty())
+    if (!glfwGUI.getFrameOutputDirectory().empty() || !glfwGUI.getVideoOutputFile().empty())
         startAnim = true;
 
     if (startAnim)
