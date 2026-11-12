@@ -28,7 +28,9 @@
 #include <SofaGLFW/BaseGUIEngine.h>
 #include <SofaGLFW/NullGUIEngine.h>
 #include <sofa/gui/common/BaseViewer.h>
+#include <chrono>
 #include <memory>
+#include <vector>
 
 #include <SofaGLFW/SofaGLFWMouseManager.h>
 #include <sofa/gl/VideoRecorderFFMPEG.h>
@@ -68,6 +70,9 @@ public:
     /// Save every rendered frame as a PNG in this directory, created if needed. Empty disables it.
     bool setFrameOutputDirectory(const std::string& directory);
     const std::string& getFrameOutputDirectory() const { return m_frameOutputDirectory; }
+    /// Record a video in this file, starting with the first rendered frame. Empty disables it.
+    void setVideoOutputFile(const std::string& filename) { m_videoOutputFile = filename; }
+    const std::string& getVideoOutputFile() const { return m_videoOutputFile; }
 
     void initVisual();
     std::size_t runLoop(std::size_t targetNbIterations = 0);
@@ -133,7 +138,10 @@ public:
     void moveRayPickInteractor(int eventX, int eventY) override ;
     
     void toggleVideoRecording();
-    bool initRecorder(int width, int height, unsigned int framerate, unsigned int bitrate, const std::string& codecExtension, const std::string& codecName);
+    /// An empty filename generates one in the screenshots directory
+    bool startVideoRecording(const std::string& filename = {});
+    void stopVideoRecording();
+    bool initRecorder(int width, int height, unsigned int framerate, unsigned int bitrate, const std::string& codecExtension, const std::string& codecName, const std::string& filename = {});
 
     bool isVideoRecording() const
     {
@@ -162,6 +170,7 @@ private:
     void makeCurrentContext(GLFWwindow* sofaWindow);
     void runStep();
     void saveCurrentFrame();
+    void recordVideoFrame();
 
     inline static std::map<GLFWwindow*, SofaGLFWWindow*> s_mapWindows{};
     inline static std::map<GLFWwindow*, SofaGLFWBaseGUI*> s_mapGUIs{};
@@ -195,6 +204,13 @@ private:
     
     bool m_bVideoRecording {false};
     sofa::gl::VideoRecorderFFMPEG m_videoRecorderFFMPEG;
+    std::string m_videoOutputFile;
+    unsigned int m_videoFramerate{ 60 };
+    std::chrono::steady_clock::time_point m_videoStartTime;
+    std::size_t m_videoFrameCount{ 0 };
+    std::vector<uint8_t> m_videoPixels;
+    std::vector<uint8_t> m_previousVideoPixels;
+    sofa::type::Vec2i m_previousVideoFrameSize;
 };
 
 } // namespace sofaglfw

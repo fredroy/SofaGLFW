@@ -79,6 +79,9 @@ Using the SHIFT + CTRL keys, you will trigger events on key pressed/released.
   `--nb_iterations` to get a finite run, since there is no window to close.
 * `--save_frames`: save each rendered frame as a PNG (`frame_000000.png`, ...) in the given directory,
   created if needed. Giving it starts the animation, as frames are only written while the simulation is animating.
+* `--save_video`: record a video (60 FPS) in the given file with ffmpeg, starting the animation. Frames are paced
+  on the wall clock, as in a screen recording: a slow step holds the previous image, so the video plays at the
+  speed the simulation was seen running.
 
 The `-n`/`--nbIter` option of the batch GUI is also honoured by the `glfw` and `imgui` GUIs:
 `runSofa -g imgui -l SofaImGui -n 100 myScene.scn` stops after 100 iterations, and `infinite`
@@ -97,7 +100,9 @@ The `--offscreen` option is also available from `runSofa` with the `glfw` GUI:
 (as for any GUI argument coming from a plugin, it is only listed by `runSofa --help` when the plugin is autoloaded,
 but it is taken into account in all cases).
 
-`--offscreen` and `--save_frames` are both ignored, with a warning, by the `imgui` GUI: that GUI is the
+`--save_video` works the same way: `runSofa -g glfw -l SofaGLFW --offscreen -n 1000 --save_video /tmp/sim.mp4 myScene.scn`
+
+`--offscreen`, `--save_frames` and `--save_video` are ignored, with a warning, by the `imgui` GUI: that GUI is the
 `glfw` one plus interactive widgets, so rendering it without a user watching would serve no purpose.
 
 ## Dear ImGui

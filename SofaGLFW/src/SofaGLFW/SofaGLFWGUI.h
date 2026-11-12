@@ -70,6 +70,9 @@ public:
 
     /// Directory given with '--save_frames'; empty when the argument was not given
     static std::string getRequestedFrameOutputDirectory();
+
+    /// File given with '--save_video'; empty when the argument was not given
+    static std::string getRequestedVideoOutputFile();
     void setMouseButtonConfiguration(sofa::component::setting::MouseButtonSetting *setting) override;
 
     /// An interactive GUI ignores the arguments meant for headless rendering

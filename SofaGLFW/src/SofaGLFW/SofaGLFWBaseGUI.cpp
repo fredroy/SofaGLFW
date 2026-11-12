@@ -502,7 +502,6 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
     bool running = true;
     std::size_t currentNbIterations = 0;
     std::stringstream tmpStr;
-    std::vector<uint8_t> pixels;
 
 #if SOFAGLFW_HAVE_SOFA_GUI_BATCH
     std::unique_ptr<sofa::gui::batch::ProgressBar> progressBar;
@@ -544,11 +543,15 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     m_viewPortHeight = m_vparams->viewport()[3];
                     m_viewPortWidth = m_vparams->viewport()[2];
                     
-                    // Read framebuffer
-                    if(this->groot->getAnimate() && this->m_bVideoRecording)
+                    if (!m_videoOutputFile.empty() && !m_bVideoRecording && this->groot->getAnimate())
                     {
-                        const auto [width, height] = this->m_guiEngine->getFrameBufferPixels(pixels);
-                        m_videoRecorderFFMPEG.addFrame(pixels.data(), width, height);
+                        startVideoRecording(m_videoOutputFile);
+                        m_videoOutputFile.clear();
+                    }
+
+                    if (m_bVideoRecording)
+                    {
+                        recordVideoFrame();
                     }
 
                     if (this->groot->getAnimate() && !m_frameOutputDirectory.empty())
@@ -599,6 +602,11 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
 
         currentNbIterations++;
         running = (targetNbIterations > 0) ? currentNbIterations < targetNbIterations : true;
+    }
+
+    if (m_bVideoRecording)
+    {
+        stopVideoRecording();
     }
 
     // measurements only make sense for a bounded run
@@ -726,9 +734,9 @@ void SofaGLFWBaseGUI::terminate()
 
     if(m_bVideoRecording)
     {
-        m_videoRecorderFFMPEG.finishVideo();
+        stopVideoRecording();
     }
-    
+
     glfwTerminate();
 }
 
@@ -1286,33 +1294,76 @@ void SofaGLFWBaseGUI::toggleVideoRecording()
 {
     if(m_bVideoRecording)
     {
-        m_bVideoRecording = false;
-        m_videoRecorderFFMPEG.finishVideo();
-        msg_info("SofaGLFWBaseGUI") << "End recording";
+        stopVideoRecording();
     }
     else
     {
-        // Initialize recorder with default parameters
-        const int width = std::max(1, m_viewPortWidth);
-        const int height = std::max(1, m_viewPortHeight);
-        const unsigned int framerate = 60;
-        const unsigned int bitrate = 2000000;
-        const std::string codecExtension = "mp4";
-        const std::string codecName = "yuv420p";
-        
-        if(initRecorder(width, height, framerate, bitrate, codecExtension, codecName))
-        {
-            m_bVideoRecording = true;
-            msg_info("SofaGLFWBaseGUI") << "Start recording";
-        }
-        else
-        {
-            msg_error("SofaGLFWBaseGUI") << "Failed to initialize recorder";
-        }
+        startVideoRecording();
     }
 }
 
-bool SofaGLFWBaseGUI::initRecorder(int width, int height, unsigned int framerate, unsigned int bitrate, const std::string& codecExtension, const std::string& codecName)
+bool SofaGLFWBaseGUI::startVideoRecording(const std::string& filename)
+{
+    const int width = std::max(1, m_viewPortWidth);
+    const int height = std::max(1, m_viewPortHeight);
+    const unsigned int framerate = 60;
+    const unsigned int bitrate = 2000000;
+    const std::string codecExtension = "mp4";
+    const std::string codecName = "yuv420p";
+
+    if (!initRecorder(width, height, framerate, bitrate, codecExtension, codecName, filename))
+    {
+        msg_error("SofaGLFWBaseGUI") << "Failed to initialize recorder";
+        return false;
+    }
+
+    m_bVideoRecording = true;
+    m_videoFramerate = framerate;
+    m_videoStartTime = std::chrono::steady_clock::now();
+    m_videoFrameCount = 0;
+    m_previousVideoPixels.clear();
+    msg_info("SofaGLFWBaseGUI") << "Start recording";
+    return true;
+}
+
+void SofaGLFWBaseGUI::stopVideoRecording()
+{
+    if (!m_bVideoRecording)
+        return;
+
+    m_bVideoRecording = false;
+    m_videoRecorderFFMPEG.finishVideo();
+    msg_info("SofaGLFWBaseGUI") << "End recording";
+}
+
+void SofaGLFWBaseGUI::recordVideoFrame()
+{
+    // wall-clock pacing: the shown frame stays until the next one, as in a screen recording
+    const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - m_videoStartTime).count();
+    const auto slot = static_cast<std::size_t>(elapsed * m_videoFramerate);
+    if (slot < m_videoFrameCount)
+        return;
+
+    const auto size = m_guiEngine->getFrameBufferPixels(m_videoPixels);
+
+    if (m_previousVideoPixels.empty())
+    {
+        m_previousVideoPixels = m_videoPixels;
+        m_previousVideoFrameSize = size;
+    }
+    for (; m_videoFrameCount < slot; ++m_videoFrameCount)
+    {
+        m_videoRecorderFFMPEG.addFrame(m_previousVideoPixels.data(), m_previousVideoFrameSize[0], m_previousVideoFrameSize[1]);
+    }
+
+    m_videoRecorderFFMPEG.addFrame(m_videoPixels.data(), size[0], size[1]);
+    m_videoFrameCount = slot + 1;
+
+    std::swap(m_videoPixels, m_previousVideoPixels);
+    m_previousVideoFrameSize = size;
+}
+
+bool SofaGLFWBaseGUI::initRecorder(int width, int height, unsigned int framerate, unsigned int bitrate, const std::string& codecExtension, const std::string& codecName, const std::string& filename)
 {
     // Validate parameters
     if (width <= 0 || height <= 0)
@@ -1337,7 +1388,7 @@ bool SofaGLFWBaseGUI::initRecorder(int width, int height, unsigned int framerate
         " The initialization of the FFMPEG video recorder will likely fail. To fix this, provide a valid path to the ffmpeg executable inside this file using the syntax \"FFMPEG_EXEC_PATH=/usr/bin/ffmpeg\".";
     }
 
-    const std::string videoFilename = m_videoRecorderFFMPEG.findFilename(framerate, bitrate / 1024, codecExtension);
+    const std::string videoFilename = filename.empty() ? m_videoRecorderFFMPEG.findFilename(framerate, bitrate / 1024, codecExtension) : filename;
 
     res = m_videoRecorderFFMPEG.init(ffmpeg_exec_path, videoFilename, width, height, framerate, bitrate, codecName);
 
