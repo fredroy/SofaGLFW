@@ -88,10 +88,6 @@ public:
     /// Not reentrant: the GUI thread must not take it twice.
     [[nodiscard]] SceneLock lockScene() { return SceneLock(this); }
 
-    /// Wakes the thread so that it evaluates canStep again: needed only when the
-    /// condition changed without the scene lock (it is evaluated on its release).
-    void notify();
-
 private:
     void run();
 

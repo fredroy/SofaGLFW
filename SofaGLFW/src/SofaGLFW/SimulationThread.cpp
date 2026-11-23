@@ -75,21 +75,16 @@ void SimulationThread::stop()
 {
     if (!m_thread.joinable())
         return;
+    // Announced like a scene lock: a simulation stepping back to back keeps the mutex
+    // until it sees a request, so a plain lock() could wait forever.
+    m_guiRequests.fetch_add(1);
     {
         std::lock_guard lock(m_mutex);
         m_stopRequested = true;
     }
+    m_guiRequests.fetch_sub(1);
     m_simulationCondition.notify_all();
     m_thread.join();
-}
-
-void SimulationThread::notify()
-{
-    // Taking the mutex orders the change of the condition before the wake-up.
-    {
-        std::lock_guard lock(m_mutex);
-    }
-    m_simulationCondition.notify_all();
 }
 
 void SimulationThread::run()
