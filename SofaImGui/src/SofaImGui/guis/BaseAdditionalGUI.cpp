@@ -22,6 +22,7 @@
 #include <SofaImGui/guis/BaseAdditionalGUI.h>
 #include <imgui.h>
 #include <IconsFontAwesome6.h>
+#include <SofaImGui/windows/SceneBusy.h>
 
 namespace sofaimgui::guis {
 
@@ -37,6 +38,12 @@ void BaseAdditionalGUI::draw(sofa::core::sptr<sofa::simulation::Node> groot, win
         ImGui::End();
     }
 }
+void BaseAdditionalGUI::drawSceneBusy(windows::WindowState& winManager)
+{
+    const auto label = getWindowIcon() + "  " + getWindowName();
+    windows::showSceneBusyWindow(label.c_str(), winManager);
+}
+
 std::string BaseAdditionalGUI::getWindowIcon() const
 {
     return ICON_FA_CUBE; // Default icon, can be overridden

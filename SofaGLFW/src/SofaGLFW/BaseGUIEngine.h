@@ -40,12 +40,19 @@ public:
     virtual void init() = 0;
     virtual void initBackend(GLFWwindow*) = 0;
     /// Builds the frame (the GUI panels read and write the scene): called with the
-    /// scene lock held, after the scene was drawn.
+    /// scene lock held, after the scene was drawn; or without the scene, if
+    /// drawsFramesWithoutScene() (SofaGLFWBaseGUI::isSceneAvailable() tells which), in
+    /// which case it must not touch the scene.
     virtual void startFrame(SofaGLFWBaseGUI*) = 0;
     virtual void endFrame() = 0;
     /// Submits and presents the frame built by startFrame(), without the scene lock:
     /// must not touch the scene (a simulation thread may be stepping).
     virtual void presentFrame(SofaGLFWBaseGUI*) {}
+    /// Whether the engine draws frames without the scene (SofaGLFWBaseGUI::isSceneAvailable
+    /// false, during a long step of the simulation thread): startFrame and presentFrame
+    /// are then called without beforeDraw/afterDraw and the scene draw. Otherwise, no
+    /// frame is drawn meanwhile, and the window keeps showing the last one.
+    virtual bool drawsFramesWithoutScene() const { return false; }
     virtual void beforeDraw(GLFWwindow* window) = 0;
     virtual void afterDraw() = 0;
     virtual void terminate() = 0;

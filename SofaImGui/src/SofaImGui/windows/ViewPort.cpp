@@ -52,7 +52,8 @@ namespace windows
                       WindowState& winManagerViewPort,
                       sofaglfw::SofaGLFWBaseGUI* baseGUI,
                       bool& isViewportDisplayedForTheFirstTime,
-                      sofa::type::Vec2f& lastViewPortPos)
+                      sofa::type::Vec2f& lastViewPortPos,
+                      bool sceneAvailable)
     {
         if (*winManagerViewPort.getStatePtr())
         {
@@ -114,7 +115,7 @@ namespace windows
                 }
 
                 // Frame and orientation gizmos (ported from SofaComplianceRobotics/SofaGLFW PR#79)
-                if (frameGizmoEnabled || orientationGizmoEnabled)
+                if (sceneAvailable && (frameGizmoEnabled || orientationGizmoEnabled))
                 {
                     sofa::component::visual::BaseCamera::SPtr camera;
                     groot->get(camera);
@@ -274,7 +275,8 @@ namespace windows
                     }
                     if (ImGui::Button(ICON_FA_VIDEO))
                     {
-                        baseGUI->toggleVideoRecording();
+                        // The simulation thread reads it to decide whether it steps.
+                        baseGUI->runWithScene([baseGUI] { baseGUI->toggleVideoRecording(); });
                     }
                     ImGui::PopStyleColor(2);
                     
@@ -285,6 +287,8 @@ namespace windows
 
                     if (ImGui::BeginPopup("viewportSettingsMenu"))
                     {
+                        // The items adding or changing scene components wait for the scene.
+                        ImGui::BeginDisabled(!sceneAvailable);
                         if (ImGui::Selectable(ICON_FA_BORDER_ALL "  Show Grid"))
                         {
                             auto grid = groot->get<sofa::component::visual::VisualGrid>(createdByGuiTag);
@@ -308,10 +312,12 @@ namespace windows
                         {
                             sofaglfw::SofaGLFWBaseGUI::triggerSceneAxis(groot);
                         }
+                        ImGui::EndDisabled();
                         if (ImGui::Selectable(ICON_FA_SQUARE_FULL "  Show Frame Gizmo"))
                             frameGizmoEnabled = !frameGizmoEnabled;
                         if (ImGui::Selectable(ICON_FA_ROTATE "  Show Orientation Gizmo"))
                             orientationGizmoEnabled = !orientationGizmoEnabled;
+                        ImGui::BeginDisabled(!sceneAvailable);
                         if (ImGui::Selectable(ICON_FA_CUBE "  Show Bounding Box"))
                         {
                             auto bboxVM = groot->get<sofa::component::visual::VisualBoundingBox>(createdByGuiTag);
@@ -331,6 +337,7 @@ namespace windows
                                 bboxVM->d_enable.setValue(!bboxVM->d_enable.getValue());
                             }
                         }
+                        ImGui::EndDisabled();
                         if (ImGui::BeginMenu(ICON_FA_ARROW_POINTER " Selection parameters"))
                         {
                             ImGui::Checkbox("Enable selection drawing", &baseGUI->m_enableSelectionDraw);
@@ -344,7 +351,8 @@ namespace windows
                             ImGui::EndMenu();
                         }
                         sofa::component::visual::VisualStyle::SPtr visualStyle = nullptr;
-                        groot->get(visualStyle);
+                        if (sceneAvailable)
+                            groot->get(visualStyle);
                         if (visualStyle && ImGui::BeginMenu(ICON_FA_EYE " Display flags"))
                         {
                             sofaimgui::showDisplayFlagsWidget(visualStyle->d_displayFlags);

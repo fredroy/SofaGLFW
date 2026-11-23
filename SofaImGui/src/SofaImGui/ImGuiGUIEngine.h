@@ -24,6 +24,7 @@
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <set>
 #include <SofaGLFW/BaseGUIEngine.h>
 #include <SofaGLFW/render/RenderAPI.h>
@@ -61,6 +62,7 @@ public:
     void initBackend(GLFWwindow*) override;
     void startFrame(sofaglfw::SofaGLFWBaseGUI*) override;
     void endFrame() override;
+    bool drawsFramesWithoutScene() const override { return true; }
     void presentFrame(sofaglfw::SofaGLFWBaseGUI*) override;
     void beforeDraw(GLFWwindow* window) override;
     void afterDraw() override;
@@ -136,6 +138,12 @@ protected:
     sofa::type::Vec2f lastViewPortPos;
     bool m_imguiNeedViewReset;
     std::string m_localeBackup;
+
+    /// Kept from the last frame that had the scene, for those without it.
+    bool m_sceneAnimate{false};
+    double m_sceneTime{0.0};
+    /// Play/pause clicked in a frame without the scene, applied with the next one.
+    std::optional<bool> m_requestedAnimate;
     unsigned long m_screenshotCounter{0};
     bool m_isTerminated{ false };
     bool m_backendInitialized{ false }; ///< initBackend() set up the platform (and ImGui's GLFW backend)

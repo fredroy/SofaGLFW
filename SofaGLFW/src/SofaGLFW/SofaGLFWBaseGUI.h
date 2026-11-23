@@ -34,6 +34,8 @@
 #include <SofaGLFW/render/RenderAPI.h>
 
 #include <atomic>
+#include <functional>
+#include <vector>
 
 struct GLFWwindow;
 struct GLFWmonitor;
@@ -192,10 +194,27 @@ public:
     /// Simulation steps per second, measured by runLoop every half second.
     double getStepsPerSecond() const { return m_stepsPerSecond; }
 
+    /// Whether the GUI thread may read and write the scene now: always without a
+    /// simulation thread; with it, during the part of a frame that holds the scene. A
+    /// step longer than runLoop waits for draws a frame without the scene: the GUI
+    /// engine then shows what does not need it, and defers the rest (runWithScene).
+    bool isSceneAvailable() const { return m_sceneAvailable; }
+    /// The simulation's steps are long enough for frames to go without the scene. Set
+    /// by such a frame, cleared once the scene has been available for a while: the GUI
+    /// panels reading the scene show a placeholder meanwhile, rather than alternating
+    /// between it and their content. Never false while the scene is unavailable.
+    bool isSceneBusy() const { return m_sceneBusy; }
+    /// Runs the action now if the scene is available, otherwise at the beginning of
+    /// the next frame holding it (in the order of the calls). For the GUI thread.
+    void runWithScene(std::function<void()> action);
+
 private:
     // GLFW callbacks
     static void error_callback(int error, const char* description);
     static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+    /// key_callback with the modifiers read when the key event happened.
+    static void handleKey(GLFWwindow* window, int key, int action, int mods,
+                          bool isCtrlKeyPressed, bool isShiftKeyPressed);
     static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
     static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
     static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
@@ -216,8 +235,12 @@ private:
     /// Start or stop the simulation thread as requested. Outside the scene lock.
     void updateSimulationThread(std::size_t targetNbIterations);
     void stopSimulationThread();
-    /// The scene for this thread; holds nothing without a simulation thread.
-    SimulationThread::SceneLock lockScene();
+    /// The scene for this frame: waited for until a deadline, after which the frame
+    /// goes without it (a long step). Holds nothing without a simulation thread.
+    SimulationThread::SceneLock lockSceneForFrame();
+    /// Updates m_sceneAvailable and m_sceneBusy for a frame, and runs the deferred
+    /// actions when the frame has the scene.
+    void beginSceneFrame(bool sceneAvailable);
     /// Each step needs its own frame (video recording, saved frames): the GUI thread
     /// steps, as without simulation thread.
     bool isLockstep() const;
@@ -273,6 +296,11 @@ private:
     /// it, read by the GUI thread, both with the scene lock).
     bool m_simulationThreadRejected{false};
     std::unique_ptr<SimulationThread> m_simulationThread;
+
+    bool m_sceneAvailable{true};
+    bool m_sceneBusy{false};
+    int m_sceneAvailableStreak{0}; ///< consecutive frames with the scene
+    std::vector<std::function<void()>> m_sceneActions; ///< see runWithScene
 
     double m_nextFrameTime{0.0};
     double m_frameInterval{1.0 / 60.0};

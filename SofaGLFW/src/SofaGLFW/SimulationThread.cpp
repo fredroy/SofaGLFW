@@ -63,6 +63,9 @@ void SimulationThread::start()
         return;
     {
         std::lock_guard lock(m_mutex);
+        m_owner = Owner::None;
+        m_guiWaiting = false;
+        m_guiYieldsForStep = false;
         m_stopRequested = false;
         m_failed = false;
         m_canStepNow = false;
@@ -75,14 +78,10 @@ void SimulationThread::stop()
 {
     if (!m_thread.joinable())
         return;
-    // Announced like a scene lock: a simulation stepping back to back keeps the mutex
-    // until it sees a request, so a plain lock() could wait forever.
-    m_guiRequests.fetch_add(1);
     {
         std::lock_guard lock(m_mutex);
         m_stopRequested = true;
     }
-    m_guiRequests.fetch_sub(1);
     m_simulationCondition.notify_all();
     m_thread.join();
 }
@@ -98,18 +97,26 @@ void SimulationThread::run()
         {
             if (m_stopRequested)
                 return true;
+            if (m_owner != Owner::None)
+                return false; // the GUI holds the scene
+            // canStep reads the scene: nobody owns it, and the GUI cannot take it
+            // without the mutex.
             m_canStepNow = !m_failed && m_canStep();
             if (!m_canStepNow && m_guiYieldsForStep)
             {
-                // No step to wait for: the GUI takes the scene back.
+                // No step to wait for: the GUI takes the scene.
                 m_guiYieldsForStep = false;
                 m_guiCondition.notify_all();
             }
-            return m_canStepNow && (m_guiRequests.load() == 0 || m_guiYieldsForStep);
+            return m_canStepNow && (!m_guiWaiting || m_guiYieldsForStep);
         });
         if (m_stopRequested)
             break;
 
+        m_owner = Owner::Simulation;
+        lock.unlock();
+
+        bool failed = false;
         try
         {
             m_step();
@@ -118,21 +125,21 @@ void SimulationThread::run()
         {
             msg_error("SimulationThread") << "The simulation step failed: " << e.what()
                                           << ". The simulation thread does no more steps.";
-            m_failed = true;
+            failed = true;
         }
         catch (...)
         {
             msg_error("SimulationThread") << "The simulation step failed with an unknown exception. "
                                              "The simulation thread does no more steps.";
-            m_failed = true;
+            failed = true;
         }
-        ++m_nbSteps;
 
-        if (m_guiYieldsForStep)
-        {
-            m_guiYieldsForStep = false;
-            m_guiCondition.notify_all();
-        }
+        lock.lock();
+        m_owner = Owner::None;
+        m_failed = m_failed || failed;
+        ++m_nbSteps;
+        m_guiYieldsForStep = false;
+        m_guiCondition.notify_all(); // the GUI may be waiting for the scene
     }
 
     m_running = false;
@@ -140,25 +147,59 @@ void SimulationThread::run()
     m_guiCondition.notify_all();
 }
 
-SimulationThread::SceneLock::SceneLock(SimulationThread* owner)
-    : m_owner(owner)
+SimulationThread::SceneLock SimulationThread::lockScene()
 {
-    if (!m_owner)
-        return;
+    return acquire(nullptr);
+}
 
-    // Announced before waiting: the simulation thread finishes its step and lets go.
-    m_owner->m_guiRequests.fetch_add(1);
-    std::unique_lock lock(m_owner->m_mutex);
+SimulationThread::SceneLock SimulationThread::lockScene(Clock::time_point deadline)
+{
+    return acquire(&deadline);
+}
 
-    // No step since the last release while the simulation could step: yield for one.
-    if (m_owner->m_running && m_owner->m_canStepNow && m_owner->m_nbSteps == m_owner->m_nbStepsAtRelease)
+SimulationThread::SceneLock SimulationThread::acquire(const Clock::time_point* deadline)
+{
+    std::unique_lock lock(m_mutex);
+    m_guiWaiting = true;
+
+    // No step since the last release while the simulation can step: wait for one (the
+    // step in progress, if any).
+    if (m_running && m_canStepNow && m_nbSteps == m_nbStepsAtRelease && !m_guiYieldsForStep)
     {
-        m_owner->m_guiYieldsForStep = true;
-        m_owner->m_simulationCondition.notify_all();
-        m_owner->m_guiCondition.wait(lock, [this] { return !m_owner->m_guiYieldsForStep; });
+        m_guiYieldsForStep = true;
+        m_simulationCondition.notify_all();
     }
 
-    lock.release(); // held until unlock()
+    const auto sceneAvailable = [this] { return m_owner == Owner::None && !m_guiYieldsForStep; };
+    if (deadline)
+    {
+        if (!m_guiCondition.wait_until(lock, *deadline, sceneAvailable))
+            return SceneLock(this, false); // m_guiWaiting stays: the GUI comes back
+    }
+    else
+    {
+        m_guiCondition.wait(lock, sceneAvailable);
+    }
+
+    m_owner = Owner::GUI;
+    m_guiWaiting = false;
+    return SceneLock(this, true);
+}
+
+void SimulationThread::release()
+{
+    {
+        std::lock_guard lock(m_mutex);
+        m_owner = Owner::None;
+        m_nbStepsAtRelease = m_nbSteps;
+    }
+    m_simulationCondition.notify_all();
+}
+
+SimulationThread::SceneLock::SceneLock(SimulationThread* owner, bool ownsScene)
+    : m_owner(owner)
+    , m_ownsScene(ownsScene)
+{
 }
 
 SimulationThread::SceneLock::~SceneLock()
@@ -168,6 +209,7 @@ SimulationThread::SceneLock::~SceneLock()
 
 SimulationThread::SceneLock::SceneLock(SceneLock&& other) noexcept
     : m_owner(other.m_owner)
+    , m_ownsScene(other.m_ownsScene)
 {
     other.m_owner = nullptr;
 }
@@ -178,6 +220,7 @@ SimulationThread::SceneLock& SimulationThread::SceneLock::operator=(SceneLock&& 
     {
         unlock();
         m_owner = other.m_owner;
+        m_ownsScene = other.m_ownsScene;
         other.m_owner = nullptr;
     }
     return *this;
@@ -185,12 +228,9 @@ SimulationThread::SceneLock& SimulationThread::SceneLock::operator=(SceneLock&& 
 
 void SimulationThread::SceneLock::unlock()
 {
-    if (!m_owner)
-        return;
-    m_owner->m_nbStepsAtRelease = m_owner->m_nbSteps;
-    m_owner->m_guiRequests.fetch_sub(1);
-    m_owner->m_mutex.unlock();
-    m_owner->m_simulationCondition.notify_all();
+    // A lock that got no scene leaves the GUI's request: it comes back for the scene.
+    if (m_owner && m_ownsScene)
+        m_owner->release();
     m_owner = nullptr;
 }
 

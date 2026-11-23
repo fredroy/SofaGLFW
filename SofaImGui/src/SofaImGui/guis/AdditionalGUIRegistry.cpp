@@ -99,5 +99,15 @@ void showVisibleGUIs(sofa::core::sptr<sofa::simulation::Node> groot, std::map<st
         }
     }
 }
-    
+
+void showVisibleGUIsBusy(std::map<std::string, windows::WindowState>& states)
+{
+    for (auto& gui : MainAdditionGUIRegistry::getAllGUIs())
+    {
+        // A window shown for the first time while busy waits for the scene.
+        if (auto it = states.find(gui->getWindowName()); it != states.end())
+            gui->drawSceneBusy(it->second);
+    }
+}
+
 } // namespace sofaimgui::guis

@@ -22,7 +22,7 @@
 #pragma once
 #include <SofaGLFW/config.h>
 
-#include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
@@ -35,77 +35,97 @@ namespace sofaglfw
 /// Runs the simulation steps on a thread of its own, so that they go on while the GUI
 /// thread presents its frames (and waits for the display).
 ///
-/// The scene has a single owner at a time. The simulation thread holds it while it
-/// steps; the GUI thread takes it with lockScene() for everything that reads or writes
-/// the scene (events, scene draw, GUI panels, loading), which waits for the step in
-/// progress and holds the next ones until the lock is released. Nothing else runs in
-/// parallel with a step: in particular, the graphics API work done outside the lock
-/// (submitting and presenting the frame) must not touch the scene.
+/// The scene has a single owner at a time: the simulation thread while it steps, the
+/// GUI thread while it holds a SceneLock, for everything that reads or writes the scene
+/// (events, scene draw, GUI panels, loading). Nothing else runs in parallel with a step:
+/// in particular, the graphics API work done without the scene (submitting and
+/// presenting the frame) must not touch it.
 ///
-/// The simulation gets at least one step between two locks of the GUI (when it can
-/// step): a GUI drawing frames back to back, which nothing makes wait for the display,
-/// would otherwise hold the scene almost all the time. At worst, it alternates steps and
-/// frames, as when the GUI thread does the steps itself.
+/// The simulation gets at least one step between two scene locks of the GUI (when it
+/// can step): a GUI drawing frames back to back, which nothing makes wait for the
+/// display, would otherwise hold the scene almost all the time. At worst, it alternates
+/// steps and frames, as when the GUI thread does the steps itself.
+///
+/// A step may be long. The GUI can then give up waiting at a deadline and draw a frame
+/// without the scene: its request stays, so the thread starts no new step after the
+/// current one until the GUI comes back for the scene.
 class SOFAGLFW_API SimulationThread
 {
 public:
-    /// Both run on the simulation thread, with the scene lock held.
+    using Clock = std::chrono::steady_clock;
+
+    /// Both run on the simulation thread, which owns the scene meanwhile.
     /// @param canStep whether a step is to be done now (the simulation is animated...);
     ///        re-evaluated after each step and each time the GUI releases the scene.
     /// @param step one simulation step.
     SimulationThread(std::function<bool()> canStep, std::function<void()> step);
-    /// Stops the thread. Must not be called with the scene lock held.
+    /// Stops the thread. Must not be called while the GUI holds the scene.
     ~SimulationThread();
 
     SimulationThread(const SimulationThread&) = delete;
     SimulationThread& operator=(const SimulationThread&) = delete;
 
     void start();
-    /// Waits for the step in progress and joins the thread. Must not be called with
-    /// the scene lock held (the thread needs it to finish its step).
+    /// Waits for the step in progress and joins the thread. Must not be called while
+    /// the GUI holds the scene.
     void stop();
     bool isRunning() const { return m_thread.joinable(); }
 
-    /// Exclusive access to the scene for the GUI thread, released on destruction. A
-    /// default-constructed lock (no simulation thread) holds nothing.
+    /// Access to the scene for the GUI thread, released on destruction. Without a
+    /// simulation thread (default-constructed lock), the scene is always the GUI's.
     class SOFAGLFW_API SceneLock
     {
     public:
         SceneLock() = default;
-        explicit SceneLock(SimulationThread* owner);
         ~SceneLock();
         SceneLock(SceneLock&& other) noexcept;
         SceneLock& operator=(SceneLock&& other) noexcept;
         SceneLock(const SceneLock&) = delete;
         SceneLock& operator=(const SceneLock&) = delete;
 
+        /// Whether the GUI thread may read and write the scene.
+        bool ownsScene() const { return m_ownsScene; }
+        explicit operator bool() const { return m_ownsScene; }
+
         void unlock();
 
     private:
+        friend class SimulationThread;
+        SceneLock(SimulationThread* owner, bool ownsScene);
+
         SimulationThread* m_owner{nullptr};
+        bool m_ownsScene{true};
     };
 
-    /// Not reentrant: the GUI thread must not take it twice.
-    [[nodiscard]] SceneLock lockScene() { return SceneLock(this); }
+    /// Waits as long as needed for the scene. Not reentrant: the GUI thread must not
+    /// hold two locks.
+    [[nodiscard]] SceneLock lockScene();
+    /// Waits for the scene until the deadline at most: the lock owns no scene if it
+    /// was not available by then.
+    [[nodiscard]] SceneLock lockScene(Clock::time_point deadline);
 
 private:
+    enum class Owner { None, Simulation, GUI };
+
     void run();
+    SceneLock acquire(const Clock::time_point* deadline);
+    void release();
 
     std::function<bool()> m_canStep;
     std::function<void()> m_step;
 
-    /// The scene. Everything below is accessed with it, unless stated otherwise.
+    /// Guards everything below (except m_thread); held briefly, never during a step or
+    /// while the GUI holds the scene.
     std::mutex m_mutex;
-    /// The simulation thread waits on it: GUI released the scene, stop requested.
+    /// The simulation thread waits on it: scene released, stop requested.
     std::condition_variable m_simulationCondition;
-    /// The GUI thread waits on it for the step it yields the scene for.
+    /// The GUI thread waits on it for the scene.
     std::condition_variable m_guiCondition;
-    /// GUI threads waiting for (or holding) the scene: the simulation thread does not
-    /// start a step while it is not zero, unless the GUI yields for one. Incremented
-    /// without m_mutex (the simulation thread holds it during its steps); decremented
-    /// with it, so that the simulation thread cannot miss the wake-up that follows.
-    std::atomic<int> m_guiRequests{0};
-    /// The GUI waits for one step before taking the scene.
+    Owner m_owner{Owner::None};
+    /// The GUI waits for the scene, or gave up at a deadline and comes back: the
+    /// simulation thread starts no step, unless the GUI yields for one.
+    bool m_guiWaiting{false};
+    /// The GUI lets one step run before it takes the scene.
     bool m_guiYieldsForStep{false};
     bool m_running{false}; ///< the thread runs its loop
     bool m_stopRequested{false};

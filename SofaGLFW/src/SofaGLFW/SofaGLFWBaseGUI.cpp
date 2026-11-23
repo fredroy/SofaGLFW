@@ -644,12 +644,18 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
         {
             // Everything that reads or writes the scene: the event callbacks, the step
             // when this thread does it, the scene draw and the GUI panels. A simulation
-            // thread waits between two steps meanwhile.
-            auto sceneLock = lockScene();
+            // thread waits between two steps meanwhile. If its step lasts, the frame goes
+            // without the scene: events and GUI actions are deferred to the next frame
+            // that has it, and the GUI engine draws what does not need the scene.
+            auto sceneLock = lockSceneForFrame();
+            const bool sceneAvailable = sceneLock.ownsScene();
+            beginSceneFrame(sceneAvailable);
 
             glfwPollEvents();
 
-            if (isGUIThreadStepping())
+            if (!sceneAvailable)
+                paceFrames = !isVsync(); // only a stepping simulation thread holds the scene
+            else if (isGUIThreadStepping())
                 runStep();
             else
                 paceFrames = simulationIsRunning() && !isVsync();
@@ -661,6 +667,18 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     // while user did not request to close this window (i.e press escape), draw
                     if (!glfwWindowShouldClose(glfwWindow) && !m_guiEngine->isTerminated())
                     {
+                        if (!sceneAvailable)
+                        {
+                            // The scene target keeps the last scene image.
+                            if (m_guiEngine->drawsFramesWithoutScene())
+                            {
+                                m_guiEngine->startFrame(this);
+                                m_guiEngine->endFrame();
+                                ++nbFramesToPresent;
+                            }
+                            continue;
+                        }
+
                         m_guiEngine->beforeDraw(glfwWindow);
                         sofaGlfwWindow->draw(this->groot, m_vparams);
 
@@ -705,6 +723,10 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     }
                 }
             }
+
+            // Released at the end of this scope: what runs until the next frame (present,
+            // callbacks of other GLFW calls) defers its scene accesses.
+            m_sceneAvailable = !m_simulationThread;
         }
 
         // Submitted and presented without the scene: the simulation thread steps while
@@ -888,9 +910,58 @@ namespace
     }
 }
 
-SimulationThread::SceneLock SofaGLFWBaseGUI::lockScene()
+namespace
 {
-    return m_simulationThread ? m_simulationThread->lockScene() : SimulationThread::SceneLock{};
+    /// How long a frame waits for the step in progress before it goes without the
+    /// scene: the frame rate may drop to about 20 FPS before the panels go busy.
+    constexpr std::chrono::milliseconds sceneWaitBeforeBusy{50};
+    /// Once busy, a frame waits for the scene for this part of a display refresh, then
+    /// is drawn without it: frames keep coming at the refresh rate during a long step.
+    constexpr double sceneWaitWhileBusy = 0.75;
+    /// Frames in a row with the scene that end the busy state (about half a second).
+    constexpr int framesWithSceneToLeaveBusy = 30;
+}
+
+SimulationThread::SceneLock SofaGLFWBaseGUI::lockSceneForFrame()
+{
+    if (!m_simulationThread)
+        return SimulationThread::SceneLock{};
+
+    const auto now = SimulationThread::Clock::now();
+    const auto deadline = m_sceneBusy
+        ? now + std::chrono::duration_cast<SimulationThread::Clock::duration>(
+              std::chrono::duration<double>(sceneWaitWhileBusy * m_frameInterval))
+        : now + sceneWaitBeforeBusy;
+    return m_simulationThread->lockScene(deadline);
+}
+
+void SofaGLFWBaseGUI::beginSceneFrame(bool sceneAvailable)
+{
+    m_sceneAvailable = sceneAvailable;
+    if (!sceneAvailable)
+    {
+        m_sceneBusy = true;
+        m_sceneAvailableStreak = 0;
+        return;
+    }
+
+    if (m_sceneBusy && ++m_sceneAvailableStreak >= framesWithSceneToLeaveBusy)
+        m_sceneBusy = false;
+
+    // Deferred by frames without the scene: GUI actions and input events, in order.
+    // Swapped out first: an action may defer others (none should, the scene is there).
+    std::vector<std::function<void()>> actions;
+    actions.swap(m_sceneActions);
+    for (auto& action : actions)
+        action();
+}
+
+void SofaGLFWBaseGUI::runWithScene(std::function<void()> action)
+{
+    if (m_sceneAvailable)
+        action();
+    else
+        m_sceneActions.push_back(std::move(action));
 }
 
 void SofaGLFWBaseGUI::updateSimulationThread(std::size_t targetNbIterations)
@@ -1037,11 +1108,24 @@ int SofaGLFWBaseGUI::handleArrowKeys(int key)
 void SofaGLFWBaseGUI::key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     SOFA_UNUSED(scancode);
-    SOFA_UNUSED(mods);
 
-    const char keyName = handleArrowKeys(key);
+    // Read now: the event may be handled later, when the frame has the scene.
     const bool isCtrlKeyPressed = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS);
     const bool isShiftKeyPressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT ) == GLFW_PRESS;
+
+    const auto gui = s_mapGUIs.find(window);
+    if (gui == s_mapGUIs.end() || !gui->second)
+        return;
+    gui->second->runWithScene([=]
+    {
+        handleKey(window, key, action, mods, isCtrlKeyPressed, isShiftKeyPressed);
+    });
+}
+
+void SofaGLFWBaseGUI::handleKey(GLFWwindow* window, int key, int action, int mods,
+                                bool isCtrlKeyPressed, bool isShiftKeyPressed)
+{
+    const char keyName = handleArrowKeys(key);
 
     const bool foundGUI = s_mapGUIs.contains(window);
     if (!foundGUI)
@@ -1316,6 +1400,15 @@ void SofaGLFWBaseGUI::moveRayPickInteractor(int eventX, int eventY)
 
 void SofaGLFWBaseGUI::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
+    // Handled when the frame has the scene: these events move the camera, pick, or
+    // reach the scene's components.
+    if (const auto deferringGUI = s_mapGUIs.find(window);
+        deferringGUI != s_mapGUIs.end() && deferringGUI->second && !deferringGUI->second->isSceneAvailable())
+    {
+        deferringGUI->second->runWithScene([=] { mouse_button_callback(window, button, action, mods); });
+        return;
+    }
+
     auto currentGUI = s_mapGUIs.find(window);
     if (currentGUI == s_mapGUIs.end() || !currentGUI->second) {
         return;
@@ -1417,6 +1510,15 @@ int SofaGLFWBaseGUI::getMsaa() const
 
 void SofaGLFWBaseGUI::cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
+    // Handled when the frame has the scene: these events move the camera, pick, or
+    // reach the scene's components.
+    if (const auto deferringGUI = s_mapGUIs.find(window);
+        deferringGUI != s_mapGUIs.end() && deferringGUI->second && !deferringGUI->second->isSceneAvailable())
+    {
+        deferringGUI->second->runWithScene([=] { cursor_position_callback(window, xpos, ypos); });
+        return;
+    }
+
     auto currentGUI = s_mapGUIs.find(window);
 
     if (currentGUI != s_mapGUIs.end() && currentGUI->second)
@@ -1452,6 +1554,15 @@ void SofaGLFWBaseGUI::cursor_position_callback(GLFWwindow* window, double xpos, 
 
 void SofaGLFWBaseGUI::scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
+    // Handled when the frame has the scene: these events move the camera, pick, or
+    // reach the scene's components.
+    if (const auto deferringGUI = s_mapGUIs.find(window);
+        deferringGUI != s_mapGUIs.end() && deferringGUI->second && !deferringGUI->second->isSceneAvailable())
+    {
+        deferringGUI->second->runWithScene([=] { scroll_callback(window, xoffset, yoffset); });
+        return;
+    }
+
     auto currentGUI = s_mapGUIs.find(window);
     if (currentGUI != s_mapGUIs.end() && currentGUI->second)
     {

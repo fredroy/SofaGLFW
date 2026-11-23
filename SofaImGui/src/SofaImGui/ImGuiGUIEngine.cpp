@@ -53,6 +53,7 @@
 #include "windows/Performances.h"
 #include "windows/Plugins.h"
 #include "windows/Profiler.h"
+#include "windows/SceneBusy.h"
 #include "windows/SceneGraph.h"
 #include "windows/Settings.h"
 #include "windows/ViewPort.h"
@@ -415,6 +416,19 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     auto groot = baseGUI->getRootNode();
     m_sceneMsaa = baseGUI->getMsaa(); // the scene target follows the Settings' MSAA
 
+    // During a long step of the simulation thread, frames go without the scene: what
+    // reads it is drawn from values kept from the last frame that had it, its actions
+    // are deferred to the next one (runWithScene), and the panels showing it are
+    // replaced by a placeholder while the scene is busy (which implies unavailable
+    // frames, not necessarily this one: they would flicker otherwise).
+    const bool sceneAvailable = baseGUI->isSceneAvailable();
+    const bool scenePanels = !baseGUI->isSceneBusy();
+    if (sceneAvailable && groot)
+    {
+        m_sceneAnimate = groot->animate_.getValue();
+        m_sceneTime = groot->getTime();
+    }
+
     // Start the Dear ImGui frame
     if (m_platform)
         m_platform->newFrame();
@@ -472,8 +486,8 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     ImVec2 mainMenuBarSize;
     bool doCloseSimulation = false;
 
-    static bool animate;
-    animate = groot->animate_.getValue();
+    // A play/pause request waiting for the scene shows as done.
+    const bool animate = m_requestedAnimate.value_or(m_sceneAnimate);
 
     /***************************************
      * Main menu bar
@@ -485,7 +499,11 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
             if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN "  Open Simulation"))
             {
                 msg_info("GUI") << "Open file";
-                openFile(baseGUI, groot);
+                baseGUI->runWithScene([this, baseGUI]
+                {
+                    auto root = baseGUI->getRootNode();
+                    openFile(baseGUI, root);
+                });
             }
 
             const auto filename = baseGUI->getSceneFileName();
@@ -494,7 +512,11 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
                 if (!filename.empty() && helper::system::FileSystem::exists(filename))
                 {
                     msg_info("GUI") << "Reloading file " << filename;
-                    loadFile(baseGUI, groot, filename, true);
+                    baseGUI->runWithScene([this, baseGUI, filename]
+                    {
+                        auto root = baseGUI->getRootNode();
+                        loadFile(baseGUI, root, filename, true);
+                    });
                 }
             }
             if (ImGui::IsItemHovered())
@@ -512,7 +534,11 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
                     {
                         if (!filename.empty() && helper::system::FileSystem::exists(filename))
                         {
-                            loadFile(baseGUI, groot, path, true);
+                            baseGUI->runWithScene([this, baseGUI, path]
+                            {
+                                auto root = baseGUI->getRootNode();
+                                loadFile(baseGUI, root, path, true);
+                            });
                         }
                     }
                 }
@@ -548,45 +574,55 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
             ImGui::Separator();
             if (ImGui::MenuItem(ICON_FA_CROSSHAIRS"  Center Camera"))
             {
-                sofa::component::visual::BaseCamera::SPtr camera;
-                groot->get(camera);
-                if (camera)
+                baseGUI->runWithScene([baseGUI]
                 {
-                    if( groot->f_bbox.getValue().isValid())
+                    const auto root = baseGUI->getRootNode();
+                    sofa::component::visual::BaseCamera::SPtr camera;
+                    root->get(camera);
+                    if (camera)
                     {
-                        camera->fitBoundingBox(groot->f_bbox.getValue().minBBox(), groot->f_bbox.getValue().maxBBox());
+                        if( root->f_bbox.getValue().isValid())
+                        {
+                            camera->fitBoundingBox(root->f_bbox.getValue().minBBox(), root->f_bbox.getValue().maxBBox());
+                        }
+                        else
+                        {
+                            msg_error_when(!root->f_bbox.getValue().isValid(), "GUI") << "Global bounding box is invalid: " << root->f_bbox.getValue();
+                        }
                     }
-                    else
-                    {
-                        msg_error_when(!groot->f_bbox.getValue().isValid(), "GUI") << "Global bounding box is invalid: " << groot->f_bbox.getValue();
-                    }
-                }
+                });
             }
 
             const std::string viewFileName = baseGUI->getSceneFileName() + std::string(baseGUI->getCameraFileExtension());
             if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK"  Save Camera"))
             {
-                sofa::component::visual::BaseCamera::SPtr camera;
-                groot->get(camera);
-                if (camera)
+                baseGUI->runWithScene([baseGUI, viewFileName]
                 {
-                    if (camera->exportParametersInFile(viewFileName))
+                    sofa::component::visual::BaseCamera::SPtr camera;
+                    baseGUI->getRootNode()->get(camera);
+                    if (camera)
                     {
-                        msg_info("GUI") << "Current camera parameters have been exported to "<< viewFileName << " .";
+                        if (camera->exportParametersInFile(viewFileName))
+                        {
+                            msg_info("GUI") << "Current camera parameters have been exported to "<< viewFileName << " .";
+                        }
+                        else
+                        {
+                            msg_error("GUI") << "Could not export camera parameters to " << viewFileName << " .";
+                        }
                     }
-                    else
-                    {
-                        msg_error("GUI") << "Could not export camera parameters to " << viewFileName << " .";
-                    }
-                }
+                });
             }
             bool fileExists = sofa::helper::system::FileSystem::exists(viewFileName);
             ImGui::BeginDisabled(!fileExists);
             if (ImGui::MenuItem(ICON_FA_CAMERA_ROTATE"  Restore Camera"))
             {
-                sofa::component::visual::BaseCamera::SPtr camera;
-                groot->get(camera);
-                baseGUI->restoreCamera(camera);
+                baseGUI->runWithScene([baseGUI]
+                {
+                    sofa::component::visual::BaseCamera::SPtr camera;
+                    baseGUI->getRootNode()->get(camera);
+                    baseGUI->restoreCamera(camera);
+                });
             }
 
             ImGui::EndDisabled();
@@ -684,7 +720,13 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
         ImGui::SetCursorPosX(ImGui::GetColumnWidth() / 2); //approximatively the center of the menu bar
         if (ImGui::Button(animate ? ICON_FA_PAUSE : ICON_FA_PLAY))
         {
-            sofa::helper::getWriteOnlyAccessor(groot->animate_).wref() = !animate;
+            m_requestedAnimate = !animate;
+            baseGUI->runWithScene([this, baseGUI, requested = !animate]
+            {
+                sofa::helper::getWriteOnlyAccessor(baseGUI->getRootNode()->animate_).wref() = requested;
+                m_sceneAnimate = requested;
+                m_requestedAnimate.reset();
+            });
         }
         ImGui::SameLine();
         if (animate)
@@ -697,12 +739,16 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
         {
             if (!animate)
             {
-                sofa::helper::AdvancedTimer::begin("Animate");
+                baseGUI->runWithScene([baseGUI]
+                {
+                    const auto root = baseGUI->getRootNode();
+                    sofa::helper::AdvancedTimer::begin("Animate");
 
-                sofa::simulation::node::animate(groot.get(), groot->getDt());
-                sofa::simulation::node::updateVisual(groot.get());
+                    sofa::simulation::node::animate(root.get(), root->getDt());
+                    sofa::simulation::node::updateVisual(root.get());
 
-                sofa::helper::AdvancedTimer::end("Animate");
+                    sofa::helper::AdvancedTimer::end("Animate");
+                });
             }
         }
         ImGui::PopButtonRepeat();
@@ -714,8 +760,12 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_ROTATE_RIGHT))
         {
-            groot->setTime(0.);
-            loadFile(baseGUI, groot, baseGUI->getSceneFileName(), true);
+            baseGUI->runWithScene([this, baseGUI]
+            {
+                auto root = baseGUI->getRootNode();
+                root->setTime(0.);
+                loadFile(baseGUI, root, baseGUI->getSceneFileName(), true);
+            });
         }
 
         const auto posX = ImGui::GetCursorPosX();
@@ -737,7 +787,7 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
         {
             // Sized from the text: the time grows past 000.000 (fast with a simulation thread).
             char timeText[64];
-            std::snprintf(timeText, sizeof(timeText), "Time: %.3f", groot->getTime());
+            std::snprintf(timeText, sizeof(timeText), "Time: %.3f", m_sceneTime);
             const float timeWidth = std::max(ImGui::CalcTextSize(timeText).x, ImGui::CalcTextSize("Time: 000.000").x)
                 + ImGui::CalcTextSize("  ").x;
             auto position = ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - timeWidth
@@ -754,13 +804,17 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
 
     if (doCloseSimulation)
     {
-        // The windows would otherwise keep pointers to the unloaded components. The
-        // frame goes on with the empty scene: ImGui::NewFrame() was called, so it must
-        // reach ImGui::Render() and the present below.
-        clearComponentSelection(baseGUI);
-        sofa::simulation::node::unload(groot);
-        baseGUI->setSimulationIsRunning(false);
-        sofa::simulation::node::initRoot(groot.get());
+        // The windows would otherwise keep pointers to the unloaded components. With the
+        // scene, the frame goes on with the empty scene: ImGui::NewFrame() was called, so
+        // it must reach ImGui::Render() and the present below.
+        baseGUI->runWithScene([this, baseGUI]
+        {
+            const auto root = baseGUI->getRootNode();
+            clearComponentSelection(baseGUI);
+            sofa::simulation::node::unload(root);
+            baseGUI->setSimulationIsRunning(false);
+            sofa::simulation::node::initRoot(root.get());
+        });
     }
 
     if (m_imguiNeedViewReset)
@@ -774,7 +828,7 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
      **************************************/
     windows::showViewPort(groot, windowNameViewport, settings->ini, m_platform.get(), m_viewportWindowSize,
                           isMouseOnViewport, winManagerViewPort, baseGUI,
-                          isViewportDisplayedForTheFirstTime, lastViewPortPos);
+                          isViewportDisplayedForTheFirstTime, lastViewPortPos, scenePanels);
 
 
     /***************************************
@@ -786,11 +840,16 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Profiler window
      **************************************/
-    sofa::helper::AdvancedTimer::setEnabled("Animate", winManagerProfiler.getStatePtr());
-    sofa::helper::AdvancedTimer::setInterval("Animate", 1);
-    sofa::helper::AdvancedTimer::setOutputType("Animate", "gui");
+    if (scenePanels)
+    {
+        sofa::helper::AdvancedTimer::setEnabled("Animate", winManagerProfiler.getStatePtr());
+        sofa::helper::AdvancedTimer::setInterval("Animate", 1);
+        sofa::helper::AdvancedTimer::setOutputType("Animate", "gui");
 
-    windows::showProfiler(groot, windowNameProfiler, winManagerProfiler);
+        windows::showProfiler(groot, windowNameProfiler, winManagerProfiler);
+    }
+    else
+        windows::showSceneBusyWindow(windowNameProfiler, winManagerProfiler);
 
     /***************************************
      * Scene graph window
@@ -802,30 +861,45 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
         clearComponentSelection(baseGUI);
         m_selectionRoot = groot.get();
     }
-    windows::showSceneGraph(groot, windowNameSceneGraph, m_openedComponents,
-                            m_focusedComponents, m_currentSelection,
-                            winManagerSceneGraph, winManagerSelectionDescription);
+    if (scenePanels)
+    {
+        windows::showSceneGraph(groot, windowNameSceneGraph, m_openedComponents,
+                                m_focusedComponents, m_currentSelection,
+                                winManagerSceneGraph, winManagerSelectionDescription);
 
-    std::set<core::objectmodel::Base::SPtr> currentSelectionV;
-    for(auto component : m_currentSelection)
-        currentSelectionV.insert(component);
-    baseGUI->setCurrentSelection(currentSelectionV);
+        std::set<core::objectmodel::Base::SPtr> currentSelectionV;
+        for(auto component : m_currentSelection)
+            currentSelectionV.insert(component);
+        baseGUI->setCurrentSelection(currentSelectionV);
+    }
+    else
+        windows::showSceneBusyWindow(windowNameSceneGraph, winManagerSceneGraph);
 
     /***************************************
      * ShowSelection
      **************************************/
-    windows::showSelection(groot, windowNameSelectionDescription, m_currentSelection, m_focusedComponents,
-                            winManagerSelectionDescription);
+    if (scenePanels)
+        windows::showSelection(groot, windowNameSelectionDescription, m_currentSelection, m_focusedComponents,
+                               winManagerSelectionDescription);
+    else
+        windows::showSceneBusyWindow(windowNameSelectionDescription, winManagerSelectionDescription);
 
     /***************************************
      * Display flags window
      **************************************/
-    windows::showDisplayFlags(groot, windowNameDisplayFlags, winManagerDisplayFlags);
+    if (scenePanels)
+        windows::showDisplayFlags(groot, windowNameDisplayFlags, winManagerDisplayFlags);
+    else
+        windows::showSceneBusyWindow(windowNameDisplayFlags, winManagerDisplayFlags);
 
     /***************************************
      * Plugins window
      **************************************/
-    windows::showPlugins(windowNamePlugins, winManagerPlugins);
+    // Loading a plugin runs its initialization, which may touch anything.
+    if (scenePanels)
+        windows::showPlugins(windowNamePlugins, winManagerPlugins);
+    else
+        windows::showSceneBusyWindow(windowNamePlugins, winManagerPlugins);
 
     /***************************************
      * Components window
@@ -835,22 +909,35 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Log window
      **************************************/
-    windows::showLog(windowNameLog, settings->ini, winManagerLog);
+    // The simulation thread adds its messages during the steps.
+    if (scenePanels)
+        windows::showLog(windowNameLog, settings->ini, winManagerLog);
+    else
+        windows::showSceneBusyWindow(windowNameLog, winManagerLog);
 
     /***************************************
      * Mouse window
      **************************************/
-    windows::showManagerMouseWindow(windowNameMouse, winManagerMouse, baseGUI);
+    if (scenePanels)
+        windows::showManagerMouseWindow(windowNameMouse, winManagerMouse, baseGUI);
+    else
+        windows::showSceneBusyWindow(windowNameMouse, winManagerMouse);
 
     /***************************************
      * Snapshot window
      **************************************/
-    windows::showSnapshot(windowNameSnapshot, winManagerSnapshot, groot);
+    if (scenePanels)
+        windows::showSnapshot(windowNameSnapshot, winManagerSnapshot, groot);
+    else
+        windows::showSceneBusyWindow(windowNameSnapshot, winManagerSnapshot);
 
     /***************************************
      * Additional GUIs
      **************************************/
-    sofaimgui::guis::showVisibleGUIs(groot, winManagerAdditionalGUIs);
+    if (scenePanels)
+        sofaimgui::guis::showVisibleGUIs(groot, winManagerAdditionalGUIs);
+    else
+        sofaimgui::guis::showVisibleGUIsBusy(winManagerAdditionalGUIs);
 
     /***************************************
      * Settings window
@@ -860,7 +947,10 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Mapping Graph window
      **************************************/
-    windows::showMappingGraphWindow(windowNameMappingGraph, settings->ini, winManagerMappingGraph, groot);
+    if (scenePanels)
+        windows::showMappingGraphWindow(windowNameMappingGraph, settings->ini, winManagerMappingGraph, groot);
+    else
+        windows::showSceneBusyWindow(windowNameMappingGraph, winManagerMappingGraph);
     
     ImGui::Render();
 

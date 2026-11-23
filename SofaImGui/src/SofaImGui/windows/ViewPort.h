@@ -50,6 +50,9 @@ namespace windows
          * @param baseGUI A pointer to the base GUI object.
          * @param isViewportDisplayedForTheFirstTime A reference to a boolean indicating if this is the first time the viewport is being displayed.
          * @param lastViewPortPos A reference to the last recorded position of the viewport.
+         * @param sceneAvailable Whether the scene may be read (see SofaGLFWBaseGUI::isSceneBusy):
+         *        otherwise, only the last scene image is shown, without the gizmos and the
+         *        settings changing the scene.
          */
         void showViewPort(sofa::core::sptr<sofa::simulation::Node> groot,
                           const char* const& windowNameViewport,
@@ -60,7 +63,8 @@ namespace windows
                           WindowState& winManagerViewPort,
                           sofaglfw::SofaGLFWBaseGUI* baseGUI,
                           bool& isViewportDisplayedForTheFirstTime,
-                          sofa::type::Vec2f& lastViewPortPos);
+                          sofa::type::Vec2f& lastViewPortPos,
+                          bool sceneAvailable = true);
 
         /**
          * @brief Checks if the viewport position has moved beyond a specified threshold.

@@ -47,6 +47,12 @@ public:
     void draw(sofa::core::sptr<sofa::simulation::Node> groot, windows::WindowState& winManager);
 
     /**
+     * @brief Draw the window with a placeholder, while the scene cannot be read
+     * (see SofaGLFWBaseGUI::isSceneBusy).
+     */
+    void drawSceneBusy(windows::WindowState& winManager);
+
+    /**
      * @brief Get the name of the window.
      *
      * This will be used as the title of the ImGui window.

@@ -106,4 +106,10 @@ void drawWindowMenuCheckboxes(std::map<std::string, windows::WindowState>& state
  * @param states Map containing the state of each window, including visibility.
  */
 void showVisibleGUIs(sofa::core::sptr<sofa::simulation::Node> groot, std::map<std::string, windows::WindowState>& states);
+
+/**
+ * @brief Displays the visible GUI windows with a placeholder, while the scene cannot be read
+ * (see SofaGLFWBaseGUI::isSceneBusy).
+ */
+void showVisibleGUIsBusy(std::map<std::string, windows::WindowState>& states);
 } // namespace sofaimgui::guis
