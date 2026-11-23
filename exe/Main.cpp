@@ -57,6 +57,7 @@ int main(int argc, char** argv)
         ("offscreen", "render offscreen: no window is shown but the graphics functions are still called", cxxopts::value<bool>()->default_value("false"))
         ("hideProgressBar", "hide the progress bar of a bounded run", cxxopts::value<bool>()->default_value("false"))
         ("save_frames", "save each rendered frame as a PNG in the given directory", cxxopts::value<std::string>()->default_value(""))
+        ("async", "run the simulation in its own thread, while the frames are presented (bgfx backend; ignored with --nb_iterations)", cxxopts::value<bool>()->default_value("false"))
         ("h,help", "print usage")
         ;
 
@@ -190,6 +191,8 @@ int main(int argc, char** argv)
 
     // Run the main loop; it reports the measurements of a bounded run itself
     glfwGUI.setHideProgressBar(result["hideProgressBar"].as<bool>());
+    if (result["async"].as<bool>())
+        glfwGUI.setAsynchronousSimulation(true);
     glfwGUI.runLoop(targetNbIterations);
 
     

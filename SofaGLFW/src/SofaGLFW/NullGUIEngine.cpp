@@ -45,6 +45,11 @@ void NullGUIEngine::initBackend(GLFWwindow* window)
 }
 void NullGUIEngine::startFrame(SofaGLFWBaseGUI* baseGUI)
 {
+    SOFA_UNUSED(baseGUI);
+}
+
+void NullGUIEngine::presentFrame(SofaGLFWBaseGUI* baseGUI)
+{
     if (baseGUI && baseGUI->getRenderBackend())
         baseGUI->getRenderBackend()->present(m_window);
 }

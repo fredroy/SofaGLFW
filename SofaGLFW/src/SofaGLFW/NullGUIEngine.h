@@ -39,6 +39,7 @@ public:
     void initBackend(GLFWwindow*) override;
     void startFrame(SofaGLFWBaseGUI*) override;
     void endFrame() override;
+    void presentFrame(SofaGLFWBaseGUI*) override;
     void beforeDraw(GLFWwindow* window) override;
     void afterDraw() override {}
     void terminate() override;

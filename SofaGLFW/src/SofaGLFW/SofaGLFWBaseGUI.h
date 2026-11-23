@@ -30,7 +30,10 @@
 #include <memory>
 
 #include <SofaGLFW/SofaGLFWMouseManager.h>
+#include <SofaGLFW/SimulationThread.h>
 #include <SofaGLFW/render/RenderAPI.h>
+
+#include <atomic>
 
 struct GLFWwindow;
 struct GLFWmonitor;
@@ -178,6 +181,17 @@ public:
     void setMsaa(int level);
     int getMsaa() const;
 
+    /// Run the simulation steps on a thread of their own, while this one draws and
+    /// presents the frames. Applied by runLoop at its next iteration. Only with the
+    /// bgfx backend (the OpenGL visual models call OpenGL when they are updated), and
+    /// never in a bounded run (runLoop(n > 0) counts one step per frame).
+    void setAsynchronousSimulation(bool enabled) { m_asyncSimulationRequested = enabled; }
+    bool isAsynchronousSimulationRequested() const { return m_asyncSimulationRequested; }
+    /// Whether the simulation thread is running.
+    bool isAsynchronousSimulation() const { return m_simulationThread != nullptr; }
+    /// Simulation steps per second, measured by runLoop every half second.
+    double getStepsPerSecond() const { return m_stepsPerSecond; }
+
 private:
     // GLFW callbacks
     static void error_callback(int error, const char* description);
@@ -198,6 +212,22 @@ private:
     void makeCurrentContext(GLFWwindow* sofaWindow);
     void runStep();
     void saveCurrentFrame();
+
+    /// Start or stop the simulation thread as requested. Outside the scene lock.
+    void updateSimulationThread(std::size_t targetNbIterations);
+    void stopSimulationThread();
+    /// The scene for this thread; holds nothing without a simulation thread.
+    SimulationThread::SceneLock lockScene();
+    /// Each step needs its own frame (video recording, saved frames): the GUI thread
+    /// steps, as without simulation thread.
+    bool isLockstep() const;
+    /// Whether this frame's step is done by the GUI thread: no simulation thread,
+    /// lockstep, or a simulation thread that cannot run the scene's parallel tasks.
+    /// With the scene lock.
+    bool isGUIThreadStepping();
+    /// Sleeps until the next display refresh is due: without vsync, nothing else stops
+    /// the GUI thread from drawing frames back to back, each of which holds the scene.
+    void waitForNextFrame();
 
     inline static std::map<GLFWwindow*, SofaGLFWWindow*> s_mapWindows{};
     inline static std::map<GLFWwindow*, SofaGLFWBaseGUI*> s_mapGUIs{};
@@ -235,6 +265,23 @@ private:
 
     bool m_bVideoRecording {false};
     std::unique_ptr<render::IVideoRecorder> m_videoRecorder;
+
+    bool m_asyncSimulationRequested{false};
+    bool m_asyncUnsupportedReported{false};
+    bool m_taskSchedulerLockstepReported{false};
+    /// SOFA's task scheduler does not take tasks from the simulation thread (written by
+    /// it, read by the GUI thread, both with the scene lock).
+    bool m_simulationThreadRejected{false};
+    std::unique_ptr<SimulationThread> m_simulationThread;
+
+    double m_nextFrameTime{0.0};
+    double m_frameInterval{1.0 / 60.0};
+    double m_refreshRateTime{-1.0}; ///< when m_frameInterval was read
+
+    std::atomic<std::size_t> m_stepCounter{0}; ///< steps done, by either thread
+    std::size_t m_lastStepCount{0};
+    double m_lastStepRateTime{0.0};
+    double m_stepsPerSecond{0.0};
 };
 
 } // namespace sofaglfw

@@ -39,8 +39,13 @@ public:
     
     virtual void init() = 0;
     virtual void initBackend(GLFWwindow*) = 0;
+    /// Builds the frame (the GUI panels read and write the scene): called with the
+    /// scene lock held, after the scene was drawn.
     virtual void startFrame(SofaGLFWBaseGUI*) = 0;
     virtual void endFrame() = 0;
+    /// Submits and presents the frame built by startFrame(), without the scene lock:
+    /// must not touch the scene (a simulation thread may be stepping).
+    virtual void presentFrame(SofaGLFWBaseGUI*) {}
     virtual void beforeDraw(GLFWwindow* window) = 0;
     virtual void afterDraw() = 0;
     virtual void terminate() = 0;
@@ -63,6 +68,8 @@ public:
     {
         bool vsync{false};
         int  msaa{0};
+        /// Run the simulation in its own thread (SofaGLFWBaseGUI::setAsynchronousSimulation).
+        bool asynchronousSimulation{false};
     };
     virtual InitialRenderConfig getInitialRenderConfig() const { return {}; }
     virtual void saveNamedScreenshot(SofaGLFWBaseGUI * baseGUI, std::string filename = std::string(""), int compression_level = -1)

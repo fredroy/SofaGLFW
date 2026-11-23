@@ -21,6 +21,8 @@
 ******************************************************************************/
 #include <SofaImGui/ImGuiGUIEngine.h>
 
+#include <algorithm>
+#include <cstdio>
 #include <iomanip>
 #include <ostream>
 #include <unordered_set>
@@ -246,6 +248,7 @@ sofaglfw::BaseGUIEngine::InitialRenderConfig ImGuiGUIEngine::getInitialRenderCon
     {
         cfg.vsync = settings->ini.GetBoolValue("Rendering", "vsync", false);
         cfg.msaa = static_cast<int>(settings->ini.GetLongValue("Rendering", "msaa", 0));
+        cfg.asynchronousSimulation = settings->ini.GetBoolValue("Simulation", "asynchronous", false);
     }
     return cfg;
 }
@@ -716,21 +719,33 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
         }
 
         const auto posX = ImGui::GetCursorPosX();
+        // With a simulation thread, the frame rate says nothing about the simulation:
+        // its steps per second are shown too.
+        const bool showStepRate = showFPSInMenuBar && baseGUI->isAsynchronousSimulation();
+        const float fpsWidth = ImGui::CalcTextSize(showStepRate ? "1000.0 FPS | 100000 steps/s " : "1000.0 FPS ").x;
         if (showFPSInMenuBar)
         {
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize("1000.0 FPS ").x
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - fpsWidth
                  - 2 * ImGui::GetStyle().ItemSpacing.x);
-            ImGui::Text("%.1f FPS", io.Framerate);
+            if (showStepRate)
+                ImGui::Text("%.1f FPS | %.0f steps/s", io.Framerate, baseGUI->getStepsPerSecond());
+            else
+                ImGui::Text("%.1f FPS", io.Framerate);
             ImGui::SetCursorPosX(posX);
         }
         if (showTime)
         {
-            auto position = ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - ImGui::CalcTextSize("Time: 000.000  ").x
+            // Sized from the text: the time grows past 000.000 (fast with a simulation thread).
+            char timeText[64];
+            std::snprintf(timeText, sizeof(timeText), "Time: %.3f", groot->getTime());
+            const float timeWidth = std::max(ImGui::CalcTextSize(timeText).x, ImGui::CalcTextSize("Time: 000.000").x)
+                + ImGui::CalcTextSize("  ").x;
+            auto position = ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - timeWidth
                 - 2 * ImGui::GetStyle().ItemSpacing.x;
             if (showFPSInMenuBar)
-                position -= ImGui::CalcTextSize("1000.0 FPS ").x;
+                position -= fpsWidth;
             ImGui::SetCursorPosX(position);
-            ImGui::Text("Time: %.3f", groot->getTime());
+            ImGui::TextUnformatted(timeText);
             ImGui::SetCursorPosX(posX);
         }
         mainMenuBarSize = ImGui::GetWindowSize();
@@ -851,6 +866,15 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
 
     if (m_platform)
         m_platform->renderDrawData(ImGui::GetDrawData());
+}
+
+void ImGuiGUIEngine::presentFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
+{
+    // File > Exit terminated the engine during the frame: nothing to present.
+    if (isTerminated())
+        return;
+
+    const ImGuiIO& io = ImGui::GetIO();
 
     // Update and Render additional Platform Windows (multi-viewport)
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)

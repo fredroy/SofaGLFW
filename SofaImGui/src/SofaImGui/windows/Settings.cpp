@@ -140,6 +140,19 @@ namespace windows
                         ini.SetLongValue("Rendering", "msaa", msaaLevels[currentIdx]);
                         [[maybe_unused]] SI_Error rc = ini.SaveFile(sofaimgui::AppIniFile::getAppIniFile().c_str());
                     }
+
+                    bool asynchronous = baseGUI->isAsynchronousSimulationRequested();
+                    if (ImGui::Checkbox("Simulation in its own thread", &asynchronous))
+                    {
+                        baseGUI->setAsynchronousSimulation(asynchronous);
+                        ini.SetBoolValue("Simulation", "asynchronous", asynchronous);
+                        [[maybe_unused]] SI_Error rc = ini.SaveFile(sofaimgui::AppIniFile::getAppIniFile().c_str());
+                    }
+                    if (ImGui::IsItemHovered())
+                    {
+                        ImGui::SetTooltip("The simulation steps while the frames are presented, instead of once per frame.\n"
+                                          "bgfx backend only. Video recording and saved frames keep one step per frame.");
+                    }
                 }
 
             }

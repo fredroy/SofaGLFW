@@ -61,6 +61,7 @@ public:
     void initBackend(GLFWwindow*) override;
     void startFrame(sofaglfw::SofaGLFWBaseGUI*) override;
     void endFrame() override;
+    void presentFrame(sofaglfw::SofaGLFWBaseGUI*) override;
     void beforeDraw(GLFWwindow* window) override;
     void afterDraw() override;
     void terminate() override;

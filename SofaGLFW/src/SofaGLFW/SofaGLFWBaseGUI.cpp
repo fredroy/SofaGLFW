@@ -45,6 +45,9 @@
 #include <sofa/simulation/Node.h>
 #include <sofa/simulation/Simulation.h>
 #include <sofa/simulation/SimulationLoop.h>
+#include <sofa/simulation/task/DefaultTaskScheduler.h>
+#include <sofa/simulation/task/MainTaskSchedulerFactory.h>
+#include <sofa/simulation/task/MainTaskSchedulerRegistry.h>
 #include <sofa/component/visual/VisualStyle.h>
 #include <sofa/component/visual/LineAxis.h>
 #include <sofa/gui/common/BaseViewer.h>
@@ -64,6 +67,7 @@
 #include <iomanip>
 #include <map>
 #include <system_error>
+#include <thread>
 
 using namespace sofa;
 using namespace sofa::gui::common;
@@ -420,6 +424,9 @@ bool SofaGLFWBaseGUI::createWindow(int width, int height, const char* title, boo
         const auto renderCfg = m_guiEngine->getInitialRenderConfig();
         m_backend->setMsaa(renderCfg.msaa);
         m_backend->setVsync(renderCfg.vsync);
+        // Turns it on only: a caller (command line) may have asked for it already.
+        if (renderCfg.asynchronousSimulation)
+            setAsynchronousSimulation(true);
 
         if (!m_backend->initEngine(glfwWindow, static_cast<uint32_t>(width), static_cast<uint32_t>(height)))
         {
@@ -621,71 +628,99 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
 #endif
 
     const auto startTime = std::chrono::steady_clock::now();
+    m_lastStepCount = m_stepCounter.load();
+    m_lastStepRateTime = glfwGetTime();
 
     while (s_numberOfActiveWindows > 0 && running)
     {
         SIMULATION_LOOP_SCOPE
 
-        // Keep running
-        runStep();
+        // Outside the scene lock: stopping the thread waits for its step.
+        updateSimulationThread(targetNbIterations);
+
         sofa::type::vector<std::pair<GLFWwindow*, SofaGLFWWindow*>> closedWindows;
-
-        for (auto& [glfwWindow, sofaGlfwWindow] : s_mapWindows)
+        std::size_t nbFramesToPresent = 0;
+        bool paceFrames = false;
         {
-            if (glfwWindow && sofaGlfwWindow)
+            // Everything that reads or writes the scene: the event callbacks, the step
+            // when this thread does it, the scene draw and the GUI panels. A simulation
+            // thread waits between two steps meanwhile.
+            auto sceneLock = lockScene();
+
+            glfwPollEvents();
+
+            if (isGUIThreadStepping())
+                runStep();
+            else
+                paceFrames = simulationIsRunning() && !isVsync();
+
+            for (auto& [glfwWindow, sofaGlfwWindow] : s_mapWindows)
             {
-                // while user did not request to close this window (i.e press escape), draw
-                if (!glfwWindowShouldClose(glfwWindow) && !m_guiEngine->isTerminated())
+                if (glfwWindow && sofaGlfwWindow)
                 {
-                    m_guiEngine->beforeDraw(glfwWindow);
-                    sofaGlfwWindow->draw(this->groot, m_vparams);
-
-                    drawSelection(m_vparams);
-
-                    m_guiEngine->afterDraw();
-
-                    // Capture the frame before startFrame() presents it: GL reads the
-                    // back buffer, which is undefined after the swap, and bgfx services
-                    // a screenshot request with the frame submitted after it.
-                    // Read framebuffer for video recording (only supported by
-                    // backends providing synchronous read-back; no-op otherwise)
-                    if(this->groot->getAnimate() && this->m_bVideoRecording && m_videoRecorder)
+                    // while user did not request to close this window (i.e press escape), draw
+                    if (!glfwWindowShouldClose(glfwWindow) && !m_guiEngine->isTerminated())
                     {
-                        const auto [width, height] = this->m_guiEngine->getFrameBufferPixels(pixels);
-                        if (width > 0 && height > 0)
-                            m_videoRecorder->addFrame(pixels.data(), width, height);
-                    }
+                        m_guiEngine->beforeDraw(glfwWindow);
+                        sofaGlfwWindow->draw(this->groot, m_vparams);
 
-                    if (this->groot->getAnimate() && !m_frameOutputDirectory.empty())
+                        drawSelection(m_vparams);
+
+                        m_guiEngine->afterDraw();
+
+                        // Capture the frame before presentFrame() presents it: GL reads the
+                        // back buffer, which is undefined after the swap, and bgfx services
+                        // a screenshot request with the frame submitted after it.
+                        // Read framebuffer for video recording (only supported by
+                        // backends providing synchronous read-back; no-op otherwise)
+                        if(this->groot->getAnimate() && this->m_bVideoRecording && m_videoRecorder)
+                        {
+                            const auto [width, height] = this->m_guiEngine->getFrameBufferPixels(pixels);
+                            if (width > 0 && height > 0)
+                                m_videoRecorder->addFrame(pixels.data(), width, height);
+                        }
+
+                        if (this->groot->getAnimate() && !m_frameOutputDirectory.empty())
+                        {
+                            saveCurrentFrame();
+                        }
+
+                        if (!m_pendingScreenshotPath.empty())
+                        {
+                            m_guiEngine->saveNamedScreenshot(this, m_pendingScreenshotPath, -1);
+                            m_pendingScreenshotPath.clear();
+                        }
+
+                        m_guiEngine->startFrame(this);
+                        m_guiEngine->endFrame();
+                        ++nbFramesToPresent;
+
+                        m_viewPortHeight = m_vparams->viewport()[3];
+                        m_viewPortWidth = m_vparams->viewport()[2];
+                    }
+                    else
                     {
-                        saveCurrentFrame();
+                        // otherwise close this window
+                        closedWindows.emplace_back(glfwWindow, sofaGlfwWindow);
                     }
-
-                    if (!m_pendingScreenshotPath.empty())
-                    {
-                        m_guiEngine->saveNamedScreenshot(this, m_pendingScreenshotPath, -1);
-                        m_pendingScreenshotPath.clear();
-                    }
-
-                    m_guiEngine->startFrame(this);
-                    m_guiEngine->endFrame();
-
-                    m_viewPortHeight = m_vparams->viewport()[3];
-                    m_viewPortWidth = m_vparams->viewport()[2];
-                }
-                else
-                {
-                    // otherwise close this window
-                    closedWindows.emplace_back(glfwWindow, sofaGlfwWindow);
                 }
             }
         }
 
-        glfwPollEvents();
+        // Submitted and presented without the scene: the simulation thread steps while
+        // this one waits for the display.
+        for (std::size_t i = 0; i < nbFramesToPresent && m_guiEngine; ++i)
+            m_guiEngine->presentFrame(this);
+
+        if (paceFrames)
+            waitForNextFrame();
 
         // the engine must be terminated before the window
         if (s_numberOfActiveWindows == closedWindows.size())
         {
+            // No step may run while the scene's GPU resources are released.
+            stopSimulationThread();
+
             // could be not necessary if m_guiEngine already terminated but we may need it if GLFW closed itself. (typically escape key)
             m_guiEngine->terminate();
             m_guiEngine.reset();
@@ -710,6 +745,15 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
             delete sofaGlfwWindow;
         }
 
+        const double now = glfwGetTime();
+        if (now - m_lastStepRateTime >= 0.5)
+        {
+            const std::size_t stepCount = m_stepCounter.load();
+            m_stepsPerSecond = static_cast<double>(stepCount - m_lastStepCount) / (now - m_lastStepRateTime);
+            m_lastStepCount = stepCount;
+            m_lastStepRateTime = now;
+        }
+
 #if SOFAGLFW_HAVE_SOFA_GUI_BATCH
         if (progressBar)
         {
@@ -720,6 +764,8 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
         currentNbIterations++;
         running = (targetNbIterations > 0) ? currentNbIterations < targetNbIterations : true;
     }
+
+    stopSimulationThread();
 
     // measurements only make sense for a bounded run
     if (targetNbIterations > 0)
@@ -817,6 +863,118 @@ void SofaGLFWBaseGUI::runStep()
         node::updateVisual(this->groot.get());
 
         helper::AdvancedTimer::end("Animate");
+        ++m_stepCounter;
+    }
+}
+
+bool SofaGLFWBaseGUI::isLockstep() const
+{
+    return m_bVideoRecording || !m_frameOutputDirectory.empty();
+}
+
+namespace
+{
+    /// Before SOFA's default task scheduler accepted tasks from any thread (getCurrent()
+    /// registering unknown threads), it took them only from the one that created it and
+    /// from its workers: getCurrent() returned null for the others. It is asked for tasks
+    /// once a component initialized it for parallel work (thread count above 0);
+    /// sequential code never calls it. Always true with a SOFA that registers threads.
+    bool taskSchedulerAcceptsCurrentThread()
+    {
+        auto* scheduler = dynamic_cast<sofa::simulation::DefaultTaskScheduler*>(
+            sofa::simulation::MainTaskSchedulerRegistry::getTaskScheduler(
+                sofa::simulation::MainTaskSchedulerFactory::defaultTaskSchedulerType()));
+        return !scheduler || scheduler->getThreadCount() == 0 || scheduler->getCurrent() != nullptr;
+    }
+}
+
+SimulationThread::SceneLock SofaGLFWBaseGUI::lockScene()
+{
+    return m_simulationThread ? m_simulationThread->lockScene() : SimulationThread::SceneLock{};
+}
+
+void SofaGLFWBaseGUI::updateSimulationThread(std::size_t targetNbIterations)
+{
+    bool wanted = m_asyncSimulationRequested && targetNbIterations == 0;
+    if (wanted && m_renderAPI != render::RenderAPI::BGFX)
+    {
+        msg_warning_when(!m_asyncUnsupportedReported, "SofaGLFWBaseGUI")
+            << "The simulation stays in the GUI thread with the " << render::toString(m_renderAPI)
+            << " backend: its visual models call the graphics API when they are updated.";
+        m_asyncUnsupportedReported = true;
+        wanted = false;
+    }
+
+    if (wanted && !m_simulationThread)
+    {
+        // Created here if it does not exist, rather than by the first step that needs
+        // it: with a SOFA whose scheduler only knows the thread that created it, the GUI
+        // thread, which loads the scenes and initializes their components, stays that
+        // one, and can always step.
+        sofa::simulation::MainTaskSchedulerFactory::createInRegistry();
+
+        m_simulationThreadRejected = false;
+        m_simulationThread = std::make_unique<SimulationThread>(
+            [this]
+            {
+                m_simulationThreadRejected = !taskSchedulerAcceptsCurrentThread();
+                return simulationIsRunning() && !isLockstep() && !m_simulationThreadRejected;
+            },
+            [this] { runStep(); });
+        m_simulationThread->start();
+        msg_info("SofaGLFWBaseGUI") << "The simulation runs in its own thread.";
+    }
+    else if (!wanted && m_simulationThread)
+    {
+        stopSimulationThread();
+        msg_info("SofaGLFWBaseGUI") << "The simulation runs in the GUI thread.";
+    }
+}
+
+bool SofaGLFWBaseGUI::isGUIThreadStepping()
+{
+    if (!m_simulationThread || isLockstep())
+        return true;
+    if (m_simulationThreadRejected)
+    {
+        msg_warning_when(!m_taskSchedulerLockstepReported, "SofaGLFWBaseGUI")
+            << "The scene runs parallel tasks, and this version of SOFA's task scheduler only accepts "
+               "them from the thread that created it: the simulation steps in the GUI thread.";
+        m_taskSchedulerLockstepReported = true;
+        return true;
+    }
+    return false;
+}
+
+void SofaGLFWBaseGUI::waitForNextFrame()
+{
+    double now = glfwGetTime();
+    if (now - m_refreshRateTime >= 1.0)
+    {
+        // The window may have moved to another display.
+        int refreshRate = 60;
+        if (GLFWmonitor* monitor = m_firstWindow ? getCurrentMonitor(m_firstWindow) : nullptr)
+            if (const GLFWvidmode* mode = glfwGetVideoMode(monitor); mode && mode->refreshRate > 0)
+                refreshRate = mode->refreshRate;
+        m_frameInterval = 1.0 / refreshRate;
+        m_refreshRateTime = now;
+    }
+
+    if (m_nextFrameTime > now)
+    {
+        std::this_thread::sleep_for(std::chrono::duration<double>(m_nextFrameTime - now));
+        now = glfwGetTime();
+    }
+    // A late frame does not make the next ones early.
+    m_nextFrameTime = std::max(m_nextFrameTime + m_frameInterval, now);
+}
+
+void SofaGLFWBaseGUI::stopSimulationThread()
+{
+    if (m_simulationThread)
+    {
+        m_simulationThread->stop();
+        m_simulationThread.reset();
     }
 }
 
@@ -824,6 +982,8 @@ void SofaGLFWBaseGUI::terminate()
 {
     if (!m_bGlfwIsInitialized)
         return;
+
+    stopSimulationThread();
 
     if (m_guiEngine)
         m_guiEngine->terminate();

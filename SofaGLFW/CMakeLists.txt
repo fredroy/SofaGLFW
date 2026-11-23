@@ -60,6 +60,7 @@ set(HEADER_FILES
     ${SOFAGLFW_SOURCE_DIR}/SofaGLFWBaseGUI.h
     ${SOFAGLFW_SOURCE_DIR}/BaseGUIEngine.h
     ${SOFAGLFW_SOURCE_DIR}/NullGUIEngine.h
+    ${SOFAGLFW_SOURCE_DIR}/SimulationThread.h
     ${SOFAGLFW_SOURCE_DIR}/SofaGLFWMouseManager.h
     # Backend-agnostic render abstraction (no GL/bgfx headers)
     ${SOFAGLFW_SOURCE_DIR}/render/RenderAPI.h
@@ -74,6 +75,7 @@ set(SOURCE_FILES
     ${SOFAGLFW_SOURCE_DIR}/initSofaGLFW.cpp
     ${SOFAGLFW_SOURCE_DIR}/SofaGLFWWindow.cpp
     ${SOFAGLFW_SOURCE_DIR}/NullGUIEngine.cpp
+    ${SOFAGLFW_SOURCE_DIR}/SimulationThread.cpp
     ${SOFAGLFW_SOURCE_DIR}/SofaGLFWBaseGUI.cpp
     ${SOFAGLFW_SOURCE_DIR}/SofaGLFWMouseManager.cpp
     ${SOFAGLFW_SOURCE_DIR}/render/RenderBackendFactory.cpp
