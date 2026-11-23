@@ -21,6 +21,7 @@
 ******************************************************************************/
 #pragma once
 #include <SofaGLFW/config.h>
+#include <SofaGLFW/render/RenderTypes.h>
 #include <sofa/simulation/Node.h>
 
 #include <sofa/type/fwd.h>
@@ -54,6 +55,16 @@ public:
     /// frame is drawn meanwhile, and the window keeps showing the last one.
     virtual bool drawsFramesWithoutScene() const { return false; }
     virtual void beforeDraw(GLFWwindow* window) = 0;
+    /// beforeDraw() for a frame that draws the scene again from recorded draw calls
+    /// (SofaGLFWWindow::replay), without the scene: must not touch it, nor the visual
+    /// parameters, which the simulation thread reads. afterDraw() ends it.
+    /// @param viewport where the scene goes, in window units
+    /// @return false if the engine draws no scene in frames without it
+    virtual bool beforeReplay(GLFWwindow* window, render::ViewportRect& viewport)
+    {
+        SOFA_UNUSED(window); SOFA_UNUSED(viewport);
+        return false;
+    }
     virtual void afterDraw() = 0;
     virtual void terminate() = 0;
     virtual bool isTerminated() const = 0;

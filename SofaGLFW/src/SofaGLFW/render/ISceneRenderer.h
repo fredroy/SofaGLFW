@@ -66,6 +66,25 @@ public:
                            const ViewportRect& viewport,
                            const sofa::type::RGBAColor& background) = 0;
 
+    /// Whether drawScene() records its draw calls, for replayScene().
+    virtual void setRecording(bool recording) { SOFA_UNUSED(recording); }
+
+    /// Whether replayScene() has something to draw.
+    virtual bool canReplay() const { return false; }
+
+    /// Draws the scene again from the draw calls recorded by the last drawScene(), with
+    /// @p camera, without touching the scene graph: what a GUI draws while a simulation
+    /// thread steps. The camera is the GUI's own, not one of the scene.
+    /// @return false if nothing was drawn (no recording, or not supported).
+    virtual bool replayScene(sofa::component::visual::BaseCamera* camera,
+                             GLFWwindow* glfwWindow,
+                             const ViewportRect& viewport,
+                             const sofa::type::RGBAColor& background)
+    {
+        SOFA_UNUSED(camera); SOFA_UNUSED(glfwWindow); SOFA_UNUSED(viewport); SOFA_UNUSED(background);
+        return false;
+    }
+
     /// Set (and lazily load/cache) the background image by filename.
     virtual void setBackgroundImage(const std::string& filename) = 0;
 

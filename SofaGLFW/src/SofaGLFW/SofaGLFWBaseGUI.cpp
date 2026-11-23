@@ -50,6 +50,7 @@
 #include <sofa/simulation/task/MainTaskSchedulerRegistry.h>
 #include <sofa/component/visual/VisualStyle.h>
 #include <sofa/component/visual/LineAxis.h>
+#include <sofa/component/visual/InteractiveCamera.h>
 #include <sofa/gui/common/BaseViewer.h>
 #include <sofa/gui/common/BaseGUI.h>
 #include <sofa/gui/common/PickHandler.h>
@@ -65,6 +66,7 @@
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
+#include <set>
 #include <map>
 #include <system_error>
 #include <thread>
@@ -652,6 +654,8 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
             beginSceneFrame(sceneAvailable);
 
             glfwPollEvents();
+            if (sceneAvailable)
+                pushInteractionCamera(); // this frame's moves, for its scene draw
 
             if (!sceneAvailable)
                 paceFrames = !isVsync(); // only a stepping simulation thread holds the scene
@@ -669,9 +673,9 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     {
                         if (!sceneAvailable)
                         {
-                            // The scene target keeps the last scene image.
                             if (m_guiEngine->drawsFramesWithoutScene())
                             {
+                                replaySceneWithoutScene(glfwWindow, sofaGlfwWindow);
                                 m_guiEngine->startFrame(this);
                                 m_guiEngine->endFrame();
                                 ++nbFramesToPresent;
@@ -679,6 +683,8 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                             continue;
                         }
 
+                        // Recorded while the steps are long, for the frames without the scene.
+                        sofaGlfwWindow->setRecording(m_sceneBusy && m_interactionCamera != nullptr);
                         m_guiEngine->beforeDraw(glfwWindow);
                         sofaGlfwWindow->draw(this->groot, m_vparams);
 
@@ -723,6 +729,10 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     }
                 }
             }
+
+            // What the scene and the GUI's actions did to its camera, for the next moves.
+            if (sceneAvailable)
+                pullInteractionCamera();
 
             // Released at the end of this scope: what runs until the next frame (present,
             // callbacks of other GLFW calls) defers its scene accesses.
@@ -948,12 +958,107 @@ void SofaGLFWBaseGUI::beginSceneFrame(bool sceneAvailable)
     if (m_sceneBusy && ++m_sceneAvailableStreak >= framesWithSceneToLeaveBusy)
         m_sceneBusy = false;
 
+    // The user's moves of the frames without the scene, before the actions deferred by
+    // them (one may move the camera).
+    updateInteractionCamera();
+    pushInteractionCamera();
+
     // Deferred by frames without the scene: GUI actions and input events, in order.
     // Swapped out first: an action may defer others (none should, the scene is there).
     std::vector<std::function<void()>> actions;
     actions.swap(m_sceneActions);
     for (auto& action : actions)
         action();
+}
+
+namespace
+{
+    /// The camera's Data, except those naming the component or its state.
+    void copyCamera(const BaseCamera& from, BaseCamera& to)
+    {
+        static const std::set<std::string> skipped{ "name", "printLog", "tags", "bbox", "componentState", "listening" };
+        for (const auto* data : from.getDataFields())
+        {
+            if (skipped.contains(data->getName()))
+                continue;
+            if (auto* target = to.findData(data->getName()))
+                target->copyValueFrom(data);
+        }
+    }
+
+    /// Changes when the camera moves: the counters of its pose's Data (not of what it
+    /// computes, such as its viewport and clip planes).
+    long long poseCounter(const BaseCamera& camera)
+    {
+        return static_cast<long long>(camera.d_position.getCounter()) + camera.d_orientation.getCounter()
+             + camera.d_lookAt.getCounter() + camera.d_distance.getCounter() + camera.d_fieldOfView.getCounter()
+             + camera.d_zNear.getCounter() + camera.d_zFar.getCounter() + camera.d_computeZClip.getCounter()
+             + camera.d_type.getCounter() + camera.d_activated.getCounter() + camera.d_fixedLookAtPoint.getCounter();
+    }
+}
+
+void SofaGLFWBaseGUI::updateInteractionCamera()
+{
+    const auto* sceneCamera = dynamic_cast<sofa::component::visual::InteractiveCamera*>(currentCamera.get());
+    const bool wanted = m_simulationThread && sceneCamera;
+
+    if (m_interactionCamera && (!wanted || m_interactionCameraSource != currentCamera))
+    {
+        if (m_interactionCameraSource == currentCamera)
+            pushInteractionCamera(); // the last moves
+        m_interactionCamera.reset();
+        m_interactionCameraNode.reset();
+        m_interactionCameraSource.reset();
+        for (auto& [glfwWindow, sofaWindow] : s_mapWindows)
+            if (sofaWindow)
+                sofaWindow->setInteractionCamera(nullptr);
+    }
+
+    if (wanted && !m_interactionCamera)
+    {
+        m_interactionCameraNode = sofa::core::objectmodel::New<sofa::simulation::Node>("SofaGLFW interaction camera");
+        auto camera = sofa::core::objectmodel::New<sofa::component::visual::InteractiveCamera>();
+        m_interactionCameraNode->addObject(camera);
+        m_interactionCamera = camera;
+        m_interactionCameraSource = currentCamera;
+        pullInteractionCamera();
+        for (auto& [glfwWindow, sofaWindow] : s_mapWindows)
+            if (sofaWindow)
+                sofaWindow->setInteractionCamera(m_interactionCamera);
+    }
+}
+
+void SofaGLFWBaseGUI::pushInteractionCamera()
+{
+    if (!m_interactionCamera || m_interactionCameraSource != currentCamera)
+        return;
+    const long long pose = poseCounter(*m_interactionCamera);
+    if (pose == m_interactionCameraPose)
+        return;
+    copyCamera(*m_interactionCamera, *currentCamera);
+    m_interactionCameraPose = pose;
+}
+
+void SofaGLFWBaseGUI::pullInteractionCamera()
+{
+    if (!m_interactionCamera || m_interactionCameraSource != currentCamera)
+        return;
+    if (groot)
+        m_interactionCameraNode->f_bbox.setValue(groot->f_bbox.getValue());
+    copyCamera(*currentCamera, *m_interactionCamera);
+    m_interactionCameraPose = poseCounter(*m_interactionCamera);
+}
+
+void SofaGLFWBaseGUI::replaySceneWithoutScene(GLFWwindow* glfwWindow, SofaGLFWWindow* sofaWindow)
+{
+    if (!m_interactionCamera || !sofaWindow->canReplay())
+        return; // the scene target keeps the last scene image
+
+    render::ViewportRect viewport;
+    if (!m_guiEngine->beforeReplay(glfwWindow, viewport))
+        return;
+    sofaWindow->replay(m_interactionCamera.get(), viewport);
+    m_guiEngine->afterDraw();
 }
 
 void SofaGLFWBaseGUI::runWithScene(std::function<void()> action)
@@ -1398,12 +1503,21 @@ void SofaGLFWBaseGUI::moveRayPickInteractor(int eventX, int eventY)
     getPickHandler()->updateRay(position, direction);
 }
 
+namespace
+{
+    bool isShiftPressed(GLFWwindow* window)
+    {
+        return glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+    }
+}
+
 void SofaGLFWBaseGUI::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    // Handled when the frame has the scene: these events move the camera, pick, or
-    // reach the scene's components.
+    // Handled when the frame has the scene, unless they only move the GUI's own camera:
+    // picking, and the scene's camera, need the scene.
     if (const auto deferringGUI = s_mapGUIs.find(window);
-        deferringGUI != s_mapGUIs.end() && deferringGUI->second && !deferringGUI->second->isSceneAvailable())
+        deferringGUI != s_mapGUIs.end() && deferringGUI->second && !deferringGUI->second->isSceneAvailable()
+        && (!deferringGUI->second->m_interactionCamera || isShiftPressed(window)))
     {
         deferringGUI->second->runWithScene([=] { mouse_button_callback(window, button, action, mods); });
         return;
@@ -1510,10 +1624,10 @@ int SofaGLFWBaseGUI::getMsaa() const
 
 void SofaGLFWBaseGUI::cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
-    // Handled when the frame has the scene: these events move the camera, pick, or
-    // reach the scene's components.
+    // As mouse_button_callback.
     if (const auto deferringGUI = s_mapGUIs.find(window);
-        deferringGUI != s_mapGUIs.end() && deferringGUI->second && !deferringGUI->second->isSceneAvailable())
+        deferringGUI != s_mapGUIs.end() && deferringGUI->second && !deferringGUI->second->isSceneAvailable()
+        && (!deferringGUI->second->m_interactionCamera || isShiftPressed(window)))
     {
         deferringGUI->second->runWithScene([=] { cursor_position_callback(window, xpos, ypos); });
         return;
@@ -1554,10 +1668,10 @@ void SofaGLFWBaseGUI::cursor_position_callback(GLFWwindow* window, double xpos, 
 
 void SofaGLFWBaseGUI::scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    // Handled when the frame has the scene: these events move the camera, pick, or
-    // reach the scene's components.
+    // The wheel zooms the camera: deferred only when it is the scene's.
     if (const auto deferringGUI = s_mapGUIs.find(window);
-        deferringGUI != s_mapGUIs.end() && deferringGUI->second && !deferringGUI->second->isSceneAvailable())
+        deferringGUI != s_mapGUIs.end() && deferringGUI->second && !deferringGUI->second->isSceneAvailable()
+        && !deferringGUI->second->m_interactionCamera)
     {
         deferringGUI->second->runWithScene([=] { scroll_callback(window, xoffset, yoffset); });
         return;

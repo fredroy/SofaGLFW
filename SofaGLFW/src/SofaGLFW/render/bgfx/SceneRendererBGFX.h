@@ -27,6 +27,8 @@
 #include <BGFXPlugin/Context.h>
 #include <BGFXPlugin/Texture.h>
 
+#include <sofa/type/Vec.h>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -66,12 +68,34 @@ public:
                    const ViewportRect& viewport,
                    const sofa::type::RGBAColor& background) override;
 
+    void setRecording(bool recording) override { m_recording = recording; }
+    bool canReplay() const override;
+    bool replayScene(sofa::component::visual::BaseCamera* camera,
+                     GLFWwindow* glfwWindow,
+                     const ViewportRect& viewport,
+                     const sofa::type::RGBAColor& background) override;
+
     void setBackgroundImage(const std::string& filename) override;
     void clearBackgroundImage() override;
     void releaseResources() override;
     void releaseGpuResources() override { releaseResources(); }
 
 private:
+    /// The views and camera transforms of a frame, shared by drawScene and replayScene.
+    struct FrameViews
+    {
+        uint16_t vpX, vpY, width, height;
+        float xscale, yscale;
+        double view[16];
+        double projection[16];
+        float projY5;
+        sofa::type::Vec3 viewDirection;
+    };
+    /// Sets the camera's viewport and clip planes, then the views (background, scene,
+    /// transparent) for it. Reads nothing from the scene graph.
+    FrameViews setUpViews(sofa::component::visual::BaseCamera* camera, GLFWwindow* glfwWindow,
+                          const ViewportRect& viewport, const sofa::type::RGBAColor& background);
+
     /// The rect is in framebuffer pixels; the scale converts it back to logical pixels
     /// so the image tiles at one texel per logical pixel.
     /// The background image quad over a (width, height) render target, in the
@@ -88,6 +112,7 @@ private:
     bgfx_program_handle_t m_bgProgram{UINT16_MAX};
     bgfx_uniform_handle_t m_bgTexUniform{UINT16_MAX};
     bool m_bgProgramTried{false}; ///< loaded once per context: a missing shader is not retried every frame
+    bool m_recording{false};
 };
 
 } // namespace sofaglfw::render

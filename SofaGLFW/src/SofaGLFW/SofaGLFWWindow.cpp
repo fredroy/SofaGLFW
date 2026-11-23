@@ -84,6 +84,22 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
                                m_glfwWindow, viewport, m_backgroundColor);
 }
 
+void SofaGLFWWindow::setRecording(bool recording)
+{
+    if (m_sceneRenderer)
+        m_sceneRenderer->setRecording(recording);
+}
+
+bool SofaGLFWWindow::canReplay() const
+{
+    return m_sceneRenderer && m_sceneRenderer->canReplay();
+}
+
+bool SofaGLFWWindow::replay(component::visual::BaseCamera* camera, const render::ViewportRect& viewport)
+{
+    return m_sceneRenderer && m_sceneRenderer->replayScene(camera, m_glfwWindow, viewport, m_backgroundColor);
+}
+
 void SofaGLFWWindow::setBackgroundColor(const sofa::type::RGBAColor& newColor)
 {
     m_backgroundColor = newColor;
@@ -148,6 +164,11 @@ void SofaGLFWWindow::setCamera(component::visual::BaseCamera::SPtr newCamera)
     m_currentCamera = newCamera;
 }
 
+void SofaGLFWWindow::setInteractionCamera(component::visual::BaseCamera::SPtr camera)
+{
+    m_interactionCamera = camera;
+}
+
 void SofaGLFWWindow::centerCamera(simulation::NodeSPtr node, core::visual::VisualParams* vparams) const
 {
     if (m_currentCamera)
@@ -189,11 +210,15 @@ void SofaGLFWWindow::mouseMoveEvent(int xpos, int ypos, SofaGLFWBaseGUI* gui)
                 // A fallback event to rule them all...
                 mEvent = new core::objectmodel::MouseEvent(core::objectmodel::MouseEvent::AnyExtraButtonPressed, xpos, ypos);
             }
-            m_currentCamera->manageEvent(mEvent);
+            interactionCamera()->manageEvent(mEvent);
 
-            auto rootNode = gui->getRootNode();
-
-            rootNode->propagateEvent(core::execparams::defaultInstance(), mEvent);
+            // The scene's components get it when the frame has the scene.
+            const auto type = mEvent->getState();
+            gui->runWithScene([gui, type, xpos, ypos]
+            {
+                core::objectmodel::MouseEvent event(type, xpos, ypos);
+                gui->getRootNode()->propagateEvent(core::execparams::defaultInstance(), &event);
+            });
             delete mEvent;
 
             break;
@@ -212,11 +237,15 @@ void SofaGLFWWindow::mouseMoveEvent(int xpos, int ypos, SofaGLFWBaseGUI* gui)
                 // A fallback event to rules them all...
                 mEvent = new core::objectmodel::MouseEvent(core::objectmodel::MouseEvent::AnyExtraButtonReleased, xpos, ypos);
             }
-            m_currentCamera->manageEvent(mEvent);
+            interactionCamera()->manageEvent(mEvent);
 
-            auto rootNode = gui->getRootNode();
-
-            rootNode->propagateEvent(core::execparams::defaultInstance(), mEvent);
+            // The scene's components get it when the frame has the scene.
+            const auto type = mEvent->getState();
+            gui->runWithScene([gui, type, xpos, ypos]
+            {
+                core::objectmodel::MouseEvent event(type, xpos, ypos);
+                gui->getRootNode()->propagateEvent(core::execparams::defaultInstance(), &event);
+            });
             delete mEvent;
 
             break;
@@ -224,7 +253,7 @@ void SofaGLFWWindow::mouseMoveEvent(int xpos, int ypos, SofaGLFWBaseGUI* gui)
         default:
         {
             core::objectmodel::MouseEvent me(core::objectmodel::MouseEvent::Move, xpos, ypos);
-            m_currentCamera->manageEvent(&me);
+            interactionCamera()->manageEvent(&me);
             break;
         }
     }
@@ -310,7 +339,7 @@ void SofaGLFWWindow::scrollEvent(double xoffset, double yoffset)
     SOFA_UNUSED(xoffset);
     const double yFactor = 10.f;
     core::objectmodel::MouseEvent me(core::objectmodel::MouseEvent::Wheel, static_cast<int>(yoffset * yFactor));
-    m_currentCamera->manageEvent(&me);
+    interactionCamera()->manageEvent(&me);
 }
 
 } // namespace sofaglfw

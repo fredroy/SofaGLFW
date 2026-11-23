@@ -63,6 +63,7 @@ public:
     void startFrame(sofaglfw::SofaGLFWBaseGUI*) override;
     void endFrame() override;
     bool drawsFramesWithoutScene() const override { return true; }
+    bool beforeReplay(GLFWwindow* glfwWindow, sofaglfw::render::ViewportRect& viewport) override;
     void presentFrame(sofaglfw::SofaGLFWBaseGUI*) override;
     void beforeDraw(GLFWwindow* window) override;
     void afterDraw() override;

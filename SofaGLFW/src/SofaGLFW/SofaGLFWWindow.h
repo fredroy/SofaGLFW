@@ -21,6 +21,7 @@
 ******************************************************************************/
 #pragma once
 #include <SofaGLFW/config.h>
+#include <SofaGLFW/render/RenderTypes.h>
 #include <sofa/simulation/Node.h>
 
 #include <sofa/type/fwd.h>
@@ -52,6 +53,12 @@ public:
     virtual ~SofaGLFWWindow();
 
     void draw(sofa::simulation::NodeSPtr groot, sofa::core::visual::VisualParams* vparams);
+    /// Whether draw() records its draw calls, for replay().
+    void setRecording(bool recording);
+    bool canReplay() const;
+    /// Draws the scene again from the draw calls recorded by the last draw(), with
+    /// @p camera (the GUI's own), without the scene graph. @return false if nothing was drawn.
+    bool replay(sofa::component::visual::BaseCamera* camera, const render::ViewportRect& viewport);
     /// Release the scene renderer's GPU resources (the window stays open).
     void releaseResources();
     void close();
@@ -63,6 +70,9 @@ public:
     void setBackgroundImage(const std::string& filename);
 
     void setCamera(sofa::component::visual::BaseCamera::SPtr newCamera);
+    /// The camera the mouse moves, if not the scene's: a copy owned by the GUI, which a
+    /// simulation thread does not touch (see SofaGLFWBaseGUI). Null for the scene's.
+    void setInteractionCamera(sofa::component::visual::BaseCamera::SPtr camera);
     void centerCamera(sofa::simulation::NodeSPtr node, sofa::core::visual::VisualParams* vparams) const;
     bool mouseEvent(GLFWwindow* window,int width,int height ,int button, int action, int mods, double xpos, double ypos) const;
 
@@ -73,6 +83,11 @@ public:
 private:
     GLFWwindow* m_glfwWindow{nullptr};
     sofa::component::visual::BaseCamera::SPtr m_currentCamera;
+    sofa::component::visual::BaseCamera::SPtr m_interactionCamera;
+    sofa::component::visual::BaseCamera* interactionCamera() const
+    {
+        return m_interactionCamera ? m_interactionCamera.get() : m_currentCamera.get();
+    }
     int m_currentButton{ -1 };
     int m_currentAction{ -1 };
     int m_currentMods{ -1 };

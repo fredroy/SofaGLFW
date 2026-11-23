@@ -241,6 +241,19 @@ private:
     /// Updates m_sceneAvailable and m_sceneBusy for a frame, and runs the deferred
     /// actions when the frame has the scene.
     void beginSceneFrame(bool sceneAvailable);
+
+    /// With a simulation thread, the mouse moves a copy of the scene's camera, owned by
+    /// this thread: it keeps moving during a long step, and the frames drawn without the
+    /// scene replay its last draw with that camera (SofaGLFWWindow::replay). The copy and
+    /// the scene's camera are synchronized in the frames that have the scene: the user's
+    /// moves go to the scene's camera before the scene is drawn (push), and what the
+    /// scene, or the GUI's actions, did to its camera come back after (pull).
+    /// Creates or removes the copy as needed (an InteractiveCamera only); with the scene.
+    void updateInteractionCamera();
+    void pushInteractionCamera();
+    void pullInteractionCamera();
+    /// Draws the last recorded scene again with the GUI's camera, in a frame without the scene.
+    void replaySceneWithoutScene(GLFWwindow* glfwWindow, SofaGLFWWindow* sofaWindow);
     /// Each step needs its own frame (video recording, saved frames): the GUI thread
     /// steps, as without simulation thread.
     bool isLockstep() const;
@@ -301,6 +314,13 @@ private:
     bool m_sceneBusy{false};
     int m_sceneAvailableStreak{0}; ///< consecutive frames with the scene
     std::vector<std::function<void()>> m_sceneActions; ///< see runWithScene
+
+    /// See updateInteractionCamera. The node gives the camera a context, whose bounding
+    /// box is the scene's (the camera reads it when it moves).
+    sofa::simulation::NodeSPtr m_interactionCameraNode;
+    sofa::component::visual::BaseCamera::SPtr m_interactionCamera;
+    sofa::component::visual::BaseCamera::SPtr m_interactionCameraSource; ///< the scene's camera it copies
+    long long m_interactionCameraPose{0}; ///< its pose's Data counters at the last synchronization
 
     double m_nextFrameTime{0.0};
     double m_frameInterval{1.0 / 60.0};

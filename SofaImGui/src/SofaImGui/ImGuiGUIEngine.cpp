@@ -1126,6 +1126,20 @@ void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
         0, 0, logicalW, logicalH};
 }
 
+bool ImGuiGUIEngine::beforeReplay(GLFWwindow* glfwWindow, sofaglfw::render::ViewportRect& viewport)
+{
+    SOFA_UNUSED(glfwWindow);
+    if (!m_platform)
+        return false;
+
+    // As beforeDraw(), without the visual parameters.
+    const int logicalW = std::max(1, static_cast<int>(m_viewportWindowSize.first));
+    const int logicalH = std::max(1, static_cast<int>(m_viewportWindowSize.second));
+    m_platform->beginSceneTarget(logicalW, logicalH, m_sceneMsaa);
+    viewport = { 0, 0, logicalW, logicalH };
+    return true;
+}
+
 void ImGuiGUIEngine::afterDraw()
 {
     if (m_platform)
