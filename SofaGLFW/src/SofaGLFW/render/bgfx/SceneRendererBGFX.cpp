@@ -129,6 +129,7 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     bgfx_set_view_clear(kViewTransparent, BGFX_CLEAR_NONE, 0, 1.0f, 0);
     bgfx_set_view_mode(kViewTransparent, BGFX_VIEW_MODE_DEPTH_DESCENDING);
     float projY5 = 1.0f;
+    sofa::type::Vec3 viewDirection(0, 0, -1);
     {
         double viewd[16]{};
         float view[16]{};
@@ -164,6 +165,11 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         vparams->setProjectionMatrix(projd);
 
         projY5 = proj[5];
+        // The camera looks along -z of the eye space: minus the third row of the
+        // model-view rotation (column-major), in world space.
+        viewDirection = sofa::type::Vec3(-viewd[2], -viewd[6], -viewd[10]);
+        if (viewDirection.norm2() > 0.0)
+            viewDirection.normalize();
     }
 
     bgfx_touch(kViewScene);
@@ -171,9 +177,13 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
     auto* drawTool = dynamic_cast<bgfxplugin::DrawToolBGFX*>(vparams->drawTool());
     if (drawTool)
     {
+        // Identity matrix and empty stacks: SOFA may leave them unbalanced, which GL
+        // forgets by reloading its modelview every frame.
+        drawTool->beginFrame();
         drawTool->setViewId(kViewScene);
         drawTool->setTransparentViewId(kViewTransparent);
         drawTool->setCameraPosition(camera->getPosition());
+        drawTool->setViewDirection(viewDirection);
         bool isOrtho = (camera->getCameraType() == sofa::core::visual::VisualParams::ORTHOGRAPHIC_TYPE);
         drawTool->setScreenParams(static_cast<float>(width), static_cast<float>(height), projY5, isOrtho);
         drawTool->setContentScale(yscale);
