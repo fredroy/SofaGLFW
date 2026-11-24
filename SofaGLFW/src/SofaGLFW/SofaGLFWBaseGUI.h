@@ -23,6 +23,7 @@
 
 #include <sofa/simulation/Simulation.h>
 #include <sofa/component/visual/BaseCamera.h>
+#include <sofa/core/visual/VisualParams.h>
 
 #include <SofaGLFW/BaseGUIEngine.h>
 #include <SofaGLFW/NullGUIEngine.h>
@@ -243,8 +244,8 @@ private:
     void beginSceneFrame(bool sceneAvailable);
 
     /// With a simulation thread, the mouse moves a copy of the scene's camera, owned by
-    /// this thread: it keeps moving during a long step, and the frames drawn without the
-    /// scene replay its last draw with that camera (SofaGLFWWindow::replay). The copy and
+    /// this thread: it keeps moving during a long step, and the frames replay the scene
+    /// that the simulation thread recorded with that camera (SofaGLFWWindow::replay). The copy and
     /// the scene's camera are synchronized in the frames that have the scene: the user's
     /// moves go to the scene's camera before the scene is drawn (push), and what the
     /// scene, or the GUI's actions, did to its camera come back after (pull).
@@ -252,8 +253,18 @@ private:
     void updateInteractionCamera();
     void pushInteractionCamera();
     void pullInteractionCamera();
-    /// Draws the last recorded scene again with the GUI's camera, in a frame without the scene.
-    void replaySceneWithoutScene(GLFWwindow* glfwWindow, SofaGLFWWindow* sofaWindow);
+    /// While the simulation thread steps, it draws the scene after a step into a recording,
+    /// once per frame (asked by the frames), and the frames replay the last recording with
+    /// the GUI's camera, whether they have the scene or not: this thread never waits for
+    /// a scene draw. Otherwise (paused, or the GUI thread steps), the frames draw the
+    /// scene themselves.
+    bool replaysRecordings();
+    /// Draws the last recording with the GUI's camera. @p sceneAvailable: the frame has
+    /// the scene (the visual params are set as for a draw). @return false if there is
+    /// none: the scene target keeps its image.
+    bool replayScene(GLFWwindow* glfwWindow, SofaGLFWWindow* sofaWindow, bool sceneAvailable);
+    /// Simulation thread, after a step: the recording asked by a frame.
+    void recordScene();
     /// Each step needs its own frame (video recording, saved frames): the GUI thread
     /// steps, as without simulation thread.
     bool isLockstep() const;
@@ -321,6 +332,12 @@ private:
     sofa::component::visual::BaseCamera::SPtr m_interactionCamera;
     sofa::component::visual::BaseCamera::SPtr m_interactionCameraSource; ///< the scene's camera it copies
     long long m_interactionCameraPose{0}; ///< its pose's Data counters at the last synchronization
+
+    /// See replaysRecordings. The window and the visual params of the recordings are set
+    /// by the frames that have the scene; the request is set by any frame.
+    std::atomic<bool> m_recordingRequested{false};
+    SofaGLFWWindow* m_recordingWindow{nullptr};
+    sofa::core::visual::VisualParams m_recordingVisualParams;
 
     double m_nextFrameTime{0.0};
     double m_frameInterval{1.0 / 60.0};

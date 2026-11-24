@@ -29,6 +29,7 @@
 #include <sofa/component/visual/BaseCamera.h>
 #include <SofaGLFW/render/RenderAPI.h>
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -53,11 +54,14 @@ public:
     virtual ~SofaGLFWWindow();
 
     void draw(sofa::simulation::NodeSPtr groot, sofa::core::visual::VisualParams* vparams);
-    /// Whether draw() records its draw calls, for replay().
-    void setRecording(bool recording);
+    /// Draws the scene with its camera into a recording, for replay(): from a simulation
+    /// thread that owns the scene. @p afterDraw draws more into it. @return false if the
+    /// renderer cannot record, or has not drawn a frame yet.
+    bool record(sofa::simulation::NodeSPtr groot, sofa::core::visual::VisualParams* vparams,
+                const std::function<void()>& afterDraw);
     bool canReplay() const;
-    /// Draws the scene again from the draw calls recorded by the last draw(), with
-    /// @p camera (the GUI's own), without the scene graph. @return false if nothing was drawn.
+    /// Draws the scene from the draw calls of the last record(), with @p camera (the
+    /// GUI's own), without the scene graph. @return false if nothing was drawn.
     bool replay(sofa::component::visual::BaseCamera* camera, const render::ViewportRect& viewport);
     /// Release the scene renderer's GPU resources (the window stays open).
     void releaseResources();

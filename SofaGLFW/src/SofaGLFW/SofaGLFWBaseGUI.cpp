@@ -671,11 +671,15 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     // while user did not request to close this window (i.e press escape), draw
                     if (!glfwWindowShouldClose(glfwWindow) && !m_guiEngine->isTerminated())
                     {
+                        const bool replaying = replaysRecordings();
+                        if (replaying)
+                            m_recordingRequested = true; // drawn after the next step, for the next frame
+
                         if (!sceneAvailable)
                         {
                             if (m_guiEngine->drawsFramesWithoutScene())
                             {
-                                replaySceneWithoutScene(glfwWindow, sofaGlfwWindow);
+                                replayScene(glfwWindow, sofaGlfwWindow, false);
                                 m_guiEngine->startFrame(this);
                                 m_guiEngine->endFrame();
                                 ++nbFramesToPresent;
@@ -683,14 +687,22 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                             continue;
                         }
 
-                        // Recorded while the steps are long, for the frames without the scene.
-                        sofaGlfwWindow->setRecording(m_sceneBusy && m_interactionCamera != nullptr);
-                        m_guiEngine->beforeDraw(glfwWindow);
-                        sofaGlfwWindow->draw(this->groot, m_vparams);
+                        // Drawn here only before the first recording, or without one.
+                        if (!replaying || !replayScene(glfwWindow, sofaGlfwWindow, true))
+                        {
+                            m_guiEngine->beforeDraw(glfwWindow);
+                            sofaGlfwWindow->draw(this->groot, m_vparams);
+                            drawSelection(m_vparams);
+                            m_guiEngine->afterDraw();
+                        }
 
-                        drawSelection(m_vparams);
-
-                        m_guiEngine->afterDraw();
+                        // What the recordings are drawn with: this frame's viewport,
+                        // display settings and draw tool.
+                        if (replaying && glfwWindow == m_firstWindow)
+                        {
+                            m_recordingWindow = sofaGlfwWindow;
+                            m_recordingVisualParams = *m_vparams;
+                        }
 
                         // Capture the frame before presentFrame() presents it: GL reads the
                         // back buffer, which is undefined after the swap, and bgfx services
@@ -724,6 +736,13 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
                     }
                     else
                     {
+                        // The simulation thread may be recording with it: closed with the scene.
+                        if (sofaGlfwWindow == m_recordingWindow)
+                        {
+                            if (!sceneAvailable)
+                                continue;
+                            m_recordingWindow = nullptr;
+                        }
                         // otherwise close this window
                         closedWindows.emplace_back(glfwWindow, sofaGlfwWindow);
                     }
@@ -1049,16 +1068,39 @@ void SofaGLFWBaseGUI::pullInteractionCamera()
     m_interactionCameraPose = poseCounter(*m_interactionCamera);
 }
 
-void SofaGLFWBaseGUI::replaySceneWithoutScene(GLFWwindow* glfwWindow, SofaGLFWWindow* sofaWindow)
+bool SofaGLFWBaseGUI::replaysRecordings()
+{
+    if (!m_simulationThread || !m_interactionCamera)
+        return false;
+    // Without the scene, the simulation thread is in a step.
+    return !m_sceneAvailable || (!isGUIThreadStepping() && simulationIsRunning());
+}
+
+bool SofaGLFWBaseGUI::replayScene(GLFWwindow* glfwWindow, SofaGLFWWindow* sofaWindow, bool sceneAvailable)
 {
     if (!m_interactionCamera || !sofaWindow->canReplay())
-        return; // the scene target keeps the last scene image
+        return false;
 
     render::ViewportRect viewport;
-    if (!m_guiEngine->beforeReplay(glfwWindow, viewport))
-        return;
+    if (sceneAvailable)
+    {
+        m_guiEngine->beforeDraw(glfwWindow);
+        viewport = { m_vparams->viewport()[0], m_vparams->viewport()[1], m_vparams->viewport()[2], m_vparams->viewport()[3] };
+    }
+    else if (!m_guiEngine->beforeReplay(glfwWindow, viewport))
+        return false;
     sofaWindow->replay(m_interactionCamera.get(), viewport);
     m_guiEngine->afterDraw();
+    return true;
+}
+
+void SofaGLFWBaseGUI::recordScene()
+{
+    if (!m_recordingRequested.exchange(false) || !m_recordingWindow || !groot)
+        return;
+    m_recordingVisualParams.update(); // this thread's execution parameters
+    m_recordingWindow->record(groot, &m_recordingVisualParams,
+                              [this] { drawSelection(&m_recordingVisualParams); });
 }
 
 void SofaGLFWBaseGUI::runWithScene(std::function<void()> action)
@@ -1096,7 +1138,11 @@ void SofaGLFWBaseGUI::updateSimulationThread(std::size_t targetNbIterations)
                 m_simulationThreadRejected = !taskSchedulerAcceptsCurrentThread();
                 return simulationIsRunning() && !isLockstep() && !m_simulationThreadRejected;
             },
-            [this] { runStep(); });
+            [this]
+            {
+                runStep();
+                recordScene();
+            });
         m_simulationThread->start();
         msg_info("SofaGLFWBaseGUI") << "The simulation runs in its own thread.";
     }
@@ -1152,6 +1198,8 @@ void SofaGLFWBaseGUI::stopSimulationThread()
         m_simulationThread->stop();
         m_simulationThread.reset();
     }
+    m_recordingWindow = nullptr;
+    m_recordingRequested = false;
 }
 
 void SofaGLFWBaseGUI::terminate()
@@ -1183,6 +1231,7 @@ void SofaGLFWBaseGUI::shutdownRenderer()
     // its destructor after bgfx_shutdown().
     if (m_vparams)
         m_vparams->drawTool() = nullptr;
+    m_recordingVisualParams.drawTool() = nullptr;
     sofa::core::visual::VisualParams::defaultInstance()->drawTool() = nullptr;
     m_drawTool.reset();
 

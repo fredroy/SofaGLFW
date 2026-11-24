@@ -84,10 +84,11 @@ void SofaGLFWWindow::draw(simulation::NodeSPtr groot, core::visual::VisualParams
                                m_glfwWindow, viewport, m_backgroundColor);
 }
 
-void SofaGLFWWindow::setRecording(bool recording)
+bool SofaGLFWWindow::record(simulation::NodeSPtr groot, core::visual::VisualParams* vparams,
+                            const std::function<void()>& afterDraw)
 {
-    if (m_sceneRenderer)
-        m_sceneRenderer->setRecording(recording);
+    return m_currentCamera && m_sceneRenderer
+        && m_sceneRenderer->recordScene(groot.get(), vparams, m_currentCamera.get(), afterDraw);
 }
 
 bool SofaGLFWWindow::canReplay() const

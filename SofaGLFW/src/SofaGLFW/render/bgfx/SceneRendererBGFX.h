@@ -31,6 +31,7 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 
 namespace sofaglfw::render
@@ -68,7 +69,10 @@ public:
                    const ViewportRect& viewport,
                    const sofa::type::RGBAColor& background) override;
 
-    void setRecording(bool recording) override { m_recording = recording; }
+    bool recordScene(sofa::simulation::Node* groot,
+                     sofa::core::visual::VisualParams* vparams,
+                     sofa::component::visual::BaseCamera* camera,
+                     const std::function<void()>& afterDraw) override;
     bool canReplay() const override;
     bool replayScene(sofa::component::visual::BaseCamera* camera,
                      GLFWwindow* glfwWindow,
@@ -81,6 +85,14 @@ public:
     void releaseGpuResources() override { releaseResources(); }
 
 private:
+    /// What a frame is drawn to: kept from the last one for recordScene().
+    struct FrameTarget
+    {
+        ViewportRect viewport;
+        float xscale{1.0f}, yscale{1.0f};
+        sofa::type::RGBAColor background;
+    };
+
     /// The views and camera transforms of a frame, shared by drawScene and replayScene.
     struct FrameViews
     {
@@ -88,6 +100,8 @@ private:
         float xscale, yscale;
         double view[16];
         double projection[16];
+        float viewF[16];       ///< view, for bgfx
+        float projectionF[16]; ///< projection, for bgfx (depth remapped for non-GL renderers)
         float projY5;
         sofa::type::Vec3 viewDirection;
     };
@@ -95,6 +109,12 @@ private:
     /// transparent) for it. Reads nothing from the scene graph.
     FrameViews setUpViews(sofa::component::visual::BaseCamera* camera, GLFWwindow* glfwWindow,
                           const ViewportRect& viewport, const sofa::type::RGBAColor& background);
+    /// The camera's viewport and clip planes, and its transforms for @p target: no bgfx call.
+    static FrameViews computeFrame(sofa::component::visual::BaseCamera* camera, const FrameTarget& target);
+    /// The visual params and the DrawTool set up for a scene draw in @p frame.
+    static void prepareDraw(sofa::simulation::Node* groot, sofa::core::visual::VisualParams* vparams,
+                            sofa::component::visual::BaseCamera* camera, const FrameViews& frame,
+                            const sofa::type::RGBAColor& background);
 
     /// The rect is in framebuffer pixels; the scale converts it back to logical pixels
     /// so the image tiles at one texel per logical pixel.
@@ -112,7 +132,11 @@ private:
     bgfx_program_handle_t m_bgProgram{UINT16_MAX};
     bgfx_uniform_handle_t m_bgTexUniform{UINT16_MAX};
     bool m_bgProgramTried{false}; ///< loaded once per context: a missing shader is not retried every frame
-    bool m_recording{false};
+    /// The target of the last frame, written by the thread drawing the frames, read by
+    /// the one recording.
+    mutable std::mutex m_lastTargetMutex;
+    FrameTarget m_lastTarget;
+    bool m_hasLastTarget{false};
 };
 
 } // namespace sofaglfw::render

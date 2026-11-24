@@ -27,6 +27,7 @@
 #include <sofa/simulation/fwd.h>
 #include <sofa/type/RGBAColor.h>
 
+#include <functional>
 #include <string>
 
 struct GLFWwindow;
@@ -66,15 +67,27 @@ public:
                            const ViewportRect& viewport,
                            const sofa::type::RGBAColor& background) = 0;
 
-    /// Whether drawScene() records its draw calls, for replayScene().
-    virtual void setRecording(bool recording) { SOFA_UNUSED(recording); }
+    /// Draws the scene into a recording instead of the frame, from the thread of a
+    /// simulation that owns the scene (not the one drawing the frames), with the
+    /// viewport of the last frame drawn or replayed: what replayScene() then draws.
+    /// @p afterDraw draws more into the recording (the GUI's selection).
+    /// @return false if not supported, or before any frame.
+    virtual bool recordScene(sofa::simulation::Node* groot,
+                             sofa::core::visual::VisualParams* vparams,
+                             sofa::component::visual::BaseCamera* camera,
+                             const std::function<void()>& afterDraw)
+    {
+        SOFA_UNUSED(groot); SOFA_UNUSED(vparams); SOFA_UNUSED(camera); SOFA_UNUSED(afterDraw);
+        return false;
+    }
 
     /// Whether replayScene() has something to draw.
     virtual bool canReplay() const { return false; }
 
-    /// Draws the scene again from the draw calls recorded by the last drawScene(), with
-    /// @p camera, without touching the scene graph: what a GUI draws while a simulation
-    /// thread steps. The camera is the GUI's own, not one of the scene.
+    /// Draws the scene from the draw calls of the last recordScene(), with @p camera,
+    /// without touching the scene graph: what a GUI draws while a simulation thread
+    /// steps. The camera is the GUI's own, not one of the scene. A drawScene() forgets
+    /// the recording.
     /// @return false if nothing was drawn (no recording, or not supported).
     virtual bool replayScene(sofa::component::visual::BaseCamera* camera,
                              GLFWwindow* glfwWindow,

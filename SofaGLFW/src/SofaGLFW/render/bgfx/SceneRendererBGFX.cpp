@@ -68,20 +68,67 @@ SceneRendererBGFX::~SceneRendererBGFX()
         releaseResources();
 }
 
+SceneRendererBGFX::FrameViews SceneRendererBGFX::computeFrame(sofa::component::visual::BaseCamera* camera,
+                                                               const FrameTarget& target)
+{
+    FrameViews frame{};
+    const ViewportRect& viewport = target.viewport;
+
+    // ImGui viewport rect is in window units; bgfx needs framebuffer pixels
+    frame.xscale = target.xscale;
+    frame.yscale = target.yscale;
+    frame.vpX = static_cast<uint16_t>(viewport.x * frame.xscale);
+    frame.vpY = static_cast<uint16_t>(viewport.y * frame.yscale);
+    frame.width = static_cast<uint16_t>(viewport.width * frame.xscale);
+    frame.height = static_cast<uint16_t>(viewport.height * frame.yscale);
+
+    camera->computeZ();
+    if (camera->d_widthViewport.getValue() != static_cast<unsigned int>(viewport.width))
+        camera->d_widthViewport.setValue(viewport.width);
+    if (camera->d_heightViewport.getValue() != static_cast<unsigned int>(viewport.height))
+        camera->d_heightViewport.setValue(viewport.height);
+
+    camera->getOpenGLModelViewMatrix(frame.view);
+    camera->getOpenGLProjectionMatrix(frame.projection);
+    for (unsigned int i = 0; i < 16; i++)
+    {
+        frame.viewF[i] = static_cast<float>(frame.view[i]);
+        frame.projectionF[i] = static_cast<float>(frame.projection[i]);
+    }
+
+    // OpenGL projection maps depth to [-1,1]; remap to [0,1] for non-GL backends (Metal/D3D)
+    float* proj = frame.projectionF;
+    if (!bgfx_get_caps()->homogeneousDepth)
+    {
+        proj[2]  = proj[2]  * 0.5f + proj[3]  * 0.5f;
+        proj[6]  = proj[6]  * 0.5f + proj[7]  * 0.5f;
+        proj[10] = proj[10] * 0.5f + proj[11] * 0.5f;
+        proj[14] = proj[14] * 0.5f + proj[15] * 0.5f;
+    }
+
+    frame.projY5 = proj[5];
+    // The camera looks along -z of the eye space: minus the third row of the
+    // model-view rotation (column-major), in world space.
+    frame.viewDirection = sofa::type::Vec3(-frame.view[2], -frame.view[6], -frame.view[10]);
+    if (frame.viewDirection.norm2() > 0.0)
+        frame.viewDirection.normalize();
+    return frame;
+}
+
 SceneRendererBGFX::FrameViews SceneRendererBGFX::setUpViews(sofa::component::visual::BaseCamera* camera,
                                                              GLFWwindow* glfwWindow,
                                                              const ViewportRect& viewport,
                                                              const sofa::type::RGBAColor& background)
 {
-    FrameViews frame{};
+    FrameTarget target{ viewport, 1.0f, 1.0f, background };
+    framebufferScale(glfwWindow, target.xscale, target.yscale);
+    {
+        std::lock_guard lock(m_lastTargetMutex);
+        m_lastTarget = target;
+        m_hasLastTarget = true;
+    }
 
-    // ImGui viewport rect is in window units; bgfx needs framebuffer pixels
-    framebufferScale(glfwWindow, frame.xscale, frame.yscale);
-
-    frame.vpX = static_cast<uint16_t>(viewport.x * frame.xscale);
-    frame.vpY = static_cast<uint16_t>(viewport.y * frame.yscale);
-    frame.width = static_cast<uint16_t>(viewport.width * frame.xscale);
-    frame.height = static_cast<uint16_t>(viewport.height * frame.yscale);
+    const FrameViews frame = computeFrame(camera, target);
     const uint16_t vpX = frame.vpX, vpY = frame.vpY, width = frame.width, height = frame.height;
 
     const uint32_t clearColor =
@@ -101,12 +148,6 @@ SceneRendererBGFX::FrameViews SceneRendererBGFX::setUpViews(sofa::component::vis
     if (!drawBackgroundImage(width, height, frame.xscale, frame.yscale))
         bgfx_touch(kViewBackground);
 
-    camera->computeZ();
-    if (camera->d_widthViewport.getValue() != static_cast<unsigned int>(viewport.width))
-        camera->d_widthViewport.setValue(viewport.width);
-    if (camera->d_heightViewport.getValue() != static_cast<unsigned int>(viewport.height))
-        camera->d_heightViewport.setValue(viewport.height);
-
     // View 1: 3D scene with camera (viewport subset)
     bgfx_set_view_rect(kViewScene, vpX, vpY, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewScene, BGFX_CLEAR_DEPTH, 0, 1.0f, 0);
@@ -118,64 +159,19 @@ SceneRendererBGFX::FrameViews SceneRendererBGFX::setUpViews(sofa::component::vis
     bgfx_set_view_rect(kViewTransparent, vpX, vpY, width, height, 0.0f, 1.0f);
     bgfx_set_view_clear(kViewTransparent, BGFX_CLEAR_NONE, 0, 1.0f, 0);
     bgfx_set_view_mode(kViewTransparent, BGFX_VIEW_MODE_DEPTH_DESCENDING);
-    {
-        float view[16]{};
-        float proj[16]{};
-
-        camera->getOpenGLModelViewMatrix(frame.view);
-        camera->getOpenGLProjectionMatrix(frame.projection);
-
-        for (unsigned int i = 0; i < 16; i++)
-        {
-            view[i] = static_cast<float>(frame.view[i]);
-            proj[i] = static_cast<float>(frame.projection[i]);
-        }
-
-        // OpenGL projection maps depth to [-1,1]; remap to [0,1] for non-GL backends (Metal/D3D)
-        if (!bgfx_get_caps()->homogeneousDepth)
-        {
-            proj[2]  = proj[2]  * 0.5f + proj[3]  * 0.5f;
-            proj[6]  = proj[6]  * 0.5f + proj[7]  * 0.5f;
-            proj[10] = proj[10] * 0.5f + proj[11] * 0.5f;
-            proj[14] = proj[14] * 0.5f + proj[15] * 0.5f;
-        }
-
-        bgfx_set_view_transform(kViewScene, view, proj);
-        bgfx_set_view_transform(kViewTransparent, view, proj);
-
-        frame.projY5 = proj[5];
-        // The camera looks along -z of the eye space: minus the third row of the
-        // model-view rotation (column-major), in world space.
-        frame.viewDirection = sofa::type::Vec3(-frame.view[2], -frame.view[6], -frame.view[10]);
-        if (frame.viewDirection.norm2() > 0.0)
-            frame.viewDirection.normalize();
-    }
+    bgfx_set_view_transform(kViewScene, frame.viewF, frame.projectionF);
+    bgfx_set_view_transform(kViewTransparent, frame.viewF, frame.projectionF);
 
     bgfx_touch(kViewScene);
     return frame;
 }
 
-void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
-                                  sofa::core::visual::VisualParams* vparams,
-                                  sofa::component::visual::BaseCamera* camera,
-                                  GLFWwindow* glfwWindow,
-                                  const ViewportRect& viewport,
-                                  const sofa::type::RGBAColor& background)
+void SceneRendererBGFX::prepareDraw(sofa::simulation::Node* groot, sofa::core::visual::VisualParams* vparams,
+                                    sofa::component::visual::BaseCamera* camera, const FrameViews& frame,
+                                    const sofa::type::RGBAColor& background)
 {
-    // draw the scene
-    if (!camera)
-    {
-        msg_error("SceneRendererBGFX") << "No camera defined.";
-        return;
-    }
-
     if (groot->f_bbox.getValue().isValid())
-    {
         vparams->sceneBBox() = groot->f_bbox.getValue();
-        camera->setBoundingBox(vparams->sceneBBox().minBBox(), vparams->sceneBBox().maxBBox());
-    }
-
-    const FrameViews frame = setUpViews(camera, glfwWindow, viewport, background);
 
     // Update the visual params
     vparams->zNear() = camera->getZNear();
@@ -200,24 +196,71 @@ void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
         drawTool->setBackgroundColor(background);
         drawTool->setOverlayViews(kFirstOverlayView, kOverlayViewCount);
     }
+}
 
-    // Recorded for replayScene; otherwise, a previous recording would show an old state.
-    auto& recording = bgfxplugin::DrawRecording::main();
-    if (m_recording)
-        recording.begin();
-    else
-        recording.invalidate();
+void SceneRendererBGFX::drawScene(sofa::simulation::Node* groot,
+                                  sofa::core::visual::VisualParams* vparams,
+                                  sofa::component::visual::BaseCamera* camera,
+                                  GLFWwindow* glfwWindow,
+                                  const ViewportRect& viewport,
+                                  const sofa::type::RGBAColor& background)
+{
+    // draw the scene
+    if (!camera)
+    {
+        msg_error("SceneRendererBGFX") << "No camera defined.";
+        return;
+    }
+
+    if (groot->f_bbox.getValue().isValid())
+        camera->setBoundingBox(groot->f_bbox.getValue().minBBox(), groot->f_bbox.getValue().maxBBox());
+
+    // Drawn from the scene now: a recording would show an older state.
+    bgfxplugin::DrawRecording::main().invalidate();
+
+    const FrameViews frame = setUpViews(camera, glfwWindow, viewport, background);
+    prepareDraw(groot, vparams, camera, frame, background);
 
     sofa::simulation::node::draw(vparams, groot);
 
     // Single-primitive DrawTool calls (drawLine, drawTriangle, ...) are batched until a
     // state change; submit what is still pending so it is drawn in this frame, with
     // this frame's camera, instead of leaking into the next one.
-    if (drawTool)
+    if (auto* drawTool = dynamic_cast<bgfxplugin::DrawToolBGFX*>(vparams->drawTool()))
         drawTool->flush();
+}
 
-    if (m_recording)
-        recording.end();
+bool SceneRendererBGFX::recordScene(sofa::simulation::Node* groot,
+                                    sofa::core::visual::VisualParams* vparams,
+                                    sofa::component::visual::BaseCamera* camera,
+                                    const std::function<void()>& afterDraw)
+{
+    FrameTarget target;
+    {
+        std::lock_guard lock(m_lastTargetMutex);
+        if (!m_hasLastTarget)
+            return false;
+        target = m_lastTarget;
+    }
+    if (!camera || !bgfxplugin::context::isAlive())
+        return false;
+
+    if (groot->f_bbox.getValue().isValid())
+        camera->setBoundingBox(groot->f_bbox.getValue().minBBox(), groot->f_bbox.getValue().maxBBox());
+
+    const FrameViews frame = computeFrame(camera, target);
+    vparams->viewport() = { target.viewport.x, target.viewport.y, target.viewport.width, target.viewport.height };
+    prepareDraw(groot, vparams, camera, frame, target.background);
+
+    auto& recording = bgfxplugin::DrawRecording::main();
+    recording.begin();
+    sofa::simulation::node::draw(vparams, groot);
+    if (afterDraw)
+        afterDraw();
+    if (auto* drawTool = dynamic_cast<bgfxplugin::DrawToolBGFX*>(vparams->drawTool()))
+        drawTool->flush();
+    recording.end();
+    return true;
 }
 
 bool SceneRendererBGFX::canReplay() const
