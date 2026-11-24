@@ -32,6 +32,7 @@
 #include "guis/AdditionalGUIRegistry.h"
 #include "windows/WindowState.h"
 #include "windows/FrozenWindows.h"
+#include "windows/Log.h"
 #include <sofa/gui/common/FilesRecentlyOpenedManager.h>
 
 using windows::WindowState;
@@ -146,6 +147,8 @@ protected:
     bool m_sceneAnimate{false};
     /// The panels reading the scene, for the frames without it (see startFrame).
     windows::FrozenWindows m_frozenWindows;
+    /// What the Log window shows (see windows::LogMessages).
+    windows::LogMessages m_logMessages;
     double m_sceneTime{0.0};
     /// Play/pause clicked in a frame without the scene, applied with the next one.
     std::optional<bool> m_requestedAnimate;

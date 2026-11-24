@@ -32,9 +32,44 @@
 
 #include <SimpleIni.h>
 
+#include <sofa/helper/logging/Message.h>
+
+#include <string>
+#include <vector>
+
 
 namespace windows
 {
+        /**
+         * @brief The messages the Log window shows: a copy of SOFA's main log, updated
+         * when the GUI has the scene.
+         *
+         * A simulation thread adds its messages to the log during its steps, and reading
+         * it meanwhile would race. With this copy, the Log window is drawn in every frame,
+         * also during a long step (scrolling, filtering), and shows the new messages at
+         * the end of the step. Each message keeps what the window shows of it, the path
+         * of its component included, read with the scene.
+         */
+        class SOFAIMGUI_API LogMessages
+        {
+        public:
+            struct Entry
+            {
+                sofa::helper::logging::Message::Type type;
+                std::string sender;        ///< the sender, and the component's name if any
+                std::string componentPath; ///< empty without component
+                std::string text;
+            };
+
+            /// Copies the messages logged since the last update. With the scene.
+            void update();
+            const std::vector<Entry>& entries() const { return m_entries; }
+
+        private:
+            std::vector<Entry> m_entries;
+            std::size_t m_copied{0}; ///< messages of the log copied
+        };
+
         /**
          * @brief Shows the Log window.
          *
@@ -45,7 +80,8 @@ namespace windows
          */
         void showLog(const char* const& windowNameLog,
                      CSimpleIniA &ini,
-                     WindowState& winManagerLog);
+                     WindowState& winManagerLog,
+                     const LogMessages& messages);
 
 
 } // namespace sofaimgui

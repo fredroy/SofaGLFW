@@ -98,8 +98,7 @@ void drawMessageTypeLabel(sofa::helper::logging::Message::Type type)
         ImGui::Text("%s", style.label);
 }
 
-template<typename Messages>
-void saveLogToFile(const Messages& messages)
+void saveLogToFile(const std::vector<LogMessages::Entry>& messages)
 {
     nfdchar_t* outPath = nullptr;
     const nfdresult_t result = NFD_SaveDialog(&outPath, nullptr, 0, nullptr, "log.txt");
@@ -116,16 +115,10 @@ void saveLogToFile(const Messages& messages)
 
     for (const auto& message : messages)
     {
-        outputFile << "[" << messageTypeExportLabel(message.type()) << "]";
-        if (const auto* nfo = dynamic_cast<sofa::helper::logging::SofaComponentInfo*>(message.componentInfo().get()))
-        {
-            outputFile << " " << nfo->name();
-            if (nfo->m_component)
-            {
-                outputFile << " (" << nfo->m_component->getPathName() << ")";
-            }
-        }
-        outputFile << " " << message.messageAsString() << std::endl;
+        outputFile << "[" << messageTypeExportLabel(message.type) << "] " << message.sender;
+        if (!message.componentPath.empty())
+            outputFile << " (" << message.componentPath << ")";
+        outputFile << " " << message.text << std::endl;
     }
 
     outputFile.close();
@@ -133,14 +126,41 @@ void saveLogToFile(const Messages& messages)
 }
 }
 
-void showLog(const char* const& windowNameLog, CSimpleIniA &ini, WindowState& winManagerLog)
+void LogMessages::update()
+{
+    const auto& messages = sofa::helper::logging::MainLoggingMessageHandler::getInstance().getMessages();
+    if (messages.size() < m_copied)
+    {
+        // The log was reset.
+        m_entries.clear();
+        m_copied = 0;
+    }
+
+    m_entries.reserve(messages.size());
+    for (std::size_t i = m_copied; i < messages.size(); ++i)
+    {
+        const auto& message = messages[i];
+        Entry entry{ message.type(), message.sender(), {}, message.message().str() };
+        if (const auto* nfo = dynamic_cast<sofa::helper::logging::SofaComponentInfo*>(message.componentInfo().get()))
+        {
+            entry.sender.append("(" + nfo->name() + ")");
+            if (nfo->m_component)
+                entry.componentPath = nfo->m_component->getPathName();
+        }
+        m_entries.push_back(std::move(entry));
+    }
+    m_copied = messages.size();
+}
+
+void showLog(const char* const& windowNameLog, CSimpleIniA &ini, WindowState& winManagerLog,
+             const LogMessages& logMessages)
 {
     if (!*winManagerLog.getStatePtr())
         return;
 
     if (ImGui::Begin(windowNameLog, winManagerLog.getStatePtr()))
     {
-        const auto& messages = sofa::helper::logging::MainLoggingMessageHandler::getInstance().getMessages();
+        const auto& messages = logMessages.entries();
 
         struct MessageTypeFilter
         {
@@ -221,20 +241,20 @@ void showLog(const char* const& windowNameLog, CSimpleIniA &ini, WindowState& wi
             saveLogToFile(messages);
         }
 
-        // Filter once, reuse the formatted message text for both sizing and rendering.
+        // Filter once, for both sizing and rendering.
         struct VisibleMessage
         {
-            const sofa::helper::logging::Message* message;
-            std::string text;
+            const LogMessages::Entry* message;
+            const std::string& text;
         };
 
         std::vector<VisibleMessage> visibleMessages;
         visibleMessages.reserve(messages.size());
         for (const auto& message : messages)
         {
-            if (!isMessageTypeEnabled(message.type()))
+            if (!isMessageTypeEnabled(message.type))
                 continue;
-            visibleMessages.push_back({&message, message.message().str()});
+            visibleMessages.push_back({&message, message.text});
         }
 
         const int digits = [count = visibleMessages.size()]() mutable
@@ -313,19 +333,13 @@ void showLog(const char* const& windowNameLog, CSimpleIniA &ini, WindowState& wi
                 }
 
                 ImGui::TableNextColumn();
-                drawMessageTypeLabel(message.type());
+                drawMessageTypeLabel(message.type);
 
                 ImGui::TableNextColumn();
-                std::string sender = message.sender();
-                const auto* nfo = dynamic_cast<sofa::helper::logging::SofaComponentInfo*>(message.componentInfo().get());
-                if (nfo)
+                ImGui::TextUnformatted(message.sender.c_str());
+                if (!message.componentPath.empty() && ImGui::IsItemHovered())
                 {
-                    sender.append("(" + nfo->name() + ")");
-                }
-                ImGui::TextUnformatted(sender.c_str());
-                if (nfo && nfo->m_component && ImGui::IsItemHovered())
-                {
-                    ImGui::SetTooltip("Path: %s", nfo->m_component->getPathName().c_str());
+                    ImGui::SetTooltip("Path: %s", message.componentPath.c_str());
                 }
 
                 ImGui::TableNextColumn();

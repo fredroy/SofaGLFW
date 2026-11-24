@@ -980,14 +980,11 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Log window
      **************************************/
-    // The simulation thread adds its messages during the steps.
+    // The simulation thread adds its messages during the steps: the window shows a copy,
+    // updated with the scene, and is drawn in every frame.
     if (sceneAvailable)
-    {
-        windows::showLog(windowNameLog, settings->ini, winManagerLog);
-        m_frozenWindows.track(windowNameLog);
-    }
-    else
-        m_frozenWindows.show(windowNameLog, winManagerLog);
+        m_logMessages.update();
+    windows::showLog(windowNameLog, settings->ini, winManagerLog, m_logMessages);
 
     /***************************************
      * Mouse window
