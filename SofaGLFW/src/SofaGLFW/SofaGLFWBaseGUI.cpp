@@ -796,14 +796,7 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
             delete sofaGlfwWindow;
         }
 
-        const double now = glfwGetTime();
-        if (now - m_lastStepRateTime >= 0.5)
-        {
-            const std::size_t stepCount = m_stepCounter.load();
-            m_stepsPerSecond = static_cast<double>(stepCount - m_lastStepCount) / (now - m_lastStepRateTime);
-            m_lastStepCount = stepCount;
-            m_lastStepRateTime = now;
-        }
+        updateStepRate();
 
 #if SOFAGLFW_HAVE_SOFA_GUI_BATCH
         if (progressBar)
@@ -909,13 +902,51 @@ void SofaGLFWBaseGUI::runStep()
     if(simulationIsRunning())
     {
         helper::AdvancedTimer::begin("Animate");
+        const auto start = std::chrono::steady_clock::now();
 
         node::animate(this->groot.get(), this->groot->getDt());
         node::updateVisual(this->groot.get());
 
+        const std::chrono::duration<double> duration = std::chrono::steady_clock::now() - start;
         helper::AdvancedTimer::end("Animate");
+        {
+            std::lock_guard lock(m_stepTimeMutex);
+            m_stepTimeTotal += duration.count();
+            ++m_stepTimeCount;
+        }
         ++m_stepCounter;
     }
+}
+
+void SofaGLFWBaseGUI::updateStepRate()
+{
+    const double now = glfwGetTime();
+    const double elapsed = now - m_lastStepRateTime;
+    if (elapsed < 0.5)
+        return;
+
+    const std::size_t stepCount = m_stepCounter.load();
+    const std::size_t steps = stepCount - m_lastStepCount;
+    if (steps == 0 && !simulationIsRunning())
+    {
+        // Paused: the next measure starts when it runs again, rather than with the pause.
+        m_lastStepRateTime = now;
+        return;
+    }
+    // Waits for a step, up to 5 s: a long step gives its rate, rather than 0 or 2 steps/s
+    // in turn.
+    if (steps == 0 && elapsed < 5.0)
+        return;
+
+    m_stepsPerSecond = static_cast<double>(steps) / elapsed;
+    m_lastStepCount = stepCount;
+    m_lastStepRateTime = now;
+
+    std::lock_guard lock(m_stepTimeMutex);
+    if (m_stepTimeCount > m_lastStepTimeCount)
+        m_secondsPerStep = (m_stepTimeTotal - m_lastStepTimeTotal) / static_cast<double>(m_stepTimeCount - m_lastStepTimeCount);
+    m_lastStepTimeTotal = m_stepTimeTotal;
+    m_lastStepTimeCount = m_stepTimeCount;
 }
 
 bool SofaGLFWBaseGUI::isLockstep() const

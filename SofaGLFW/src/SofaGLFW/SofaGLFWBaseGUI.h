@@ -36,6 +36,7 @@
 
 #include <atomic>
 #include <functional>
+#include <mutex>
 #include <vector>
 
 struct GLFWwindow;
@@ -192,8 +193,20 @@ public:
     bool isAsynchronousSimulationRequested() const { return m_asyncSimulationRequested; }
     /// Whether the simulation thread is running.
     bool isAsynchronousSimulation() const { return m_simulationThread != nullptr; }
-    /// Simulation steps per second, measured by runLoop every half second.
+    /// Whether the steps are done by the simulation thread: it runs, and does not leave
+    /// them to the GUI thread (video recording, saved frames, a task scheduler that does
+    /// not accept it).
+    bool isSimulationThreadStepping() const
+    {
+        return m_simulationThread && !isLockstep() && !m_simulationThreadRejected;
+    }
+    /// Simulation steps per second, measured by runLoop over at least half a second
+    /// with a step (at most 5 s): steps longer than half a second give their own rate.
     double getStepsPerSecond() const { return m_stepsPerSecond; }
+    /// Average duration of those steps, in seconds: the time spent in them (animate and
+    /// visual update), not the time between them (1 / getStepsPerSecond() counts the
+    /// frames a step waits for too). 0 before the first.
+    double getSecondsPerStep() const { return m_secondsPerStep; }
 
     /// Whether the GUI thread may read and write the scene now: always without a
     /// simulation thread; with it, during the part of a frame that holds the scene. A
@@ -231,6 +244,8 @@ private:
 
     void makeCurrentContext(GLFWwindow* sofaWindow);
     void runStep();
+    /// getStepsPerSecond() and getSecondsPerStep(), when a new measure is due.
+    void updateStepRate();
     void saveCurrentFrame();
 
     /// Start or stop the simulation thread as requested. Outside the scene lock.
@@ -347,6 +362,13 @@ private:
     std::size_t m_lastStepCount{0};
     double m_lastStepRateTime{0.0};
     double m_stepsPerSecond{0.0};
+    double m_secondsPerStep{0.0};
+    /// Time spent in the steps, and their count, written by the thread stepping.
+    std::mutex m_stepTimeMutex;
+    double m_stepTimeTotal{0.0};
+    std::size_t m_stepTimeCount{0};
+    double m_lastStepTimeTotal{0.0};
+    std::size_t m_lastStepTimeCount{0};
 };
 
 } // namespace sofaglfw

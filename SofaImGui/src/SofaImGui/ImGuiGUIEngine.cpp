@@ -96,6 +96,30 @@ using namespace sofa;
 namespace sofaimgui
 {
 
+namespace
+{
+    /// Steps per second with three significant digits or more (0.512, 6.31, 2430).
+    std::string formatStepRate(double stepsPerSecond)
+    {
+        char text[32];
+        const int decimals = stepsPerSecond >= 100.0 ? 0 : stepsPerSecond >= 10.0 ? 1 : stepsPerSecond >= 1.0 ? 2 : 3;
+        std::snprintf(text, sizeof(text), "%.*f", decimals, stepsPerSecond);
+        return text;
+    }
+
+    /// A duration in s, ms or us, with three significant digits or more (1.25 s, 121 ms, 412 us).
+    std::string formatDuration(double seconds)
+    {
+        const char* unit = "s";
+        if (seconds < 1e-3) { seconds *= 1e6; unit = "us"; }
+        else if (seconds < 1.0) { seconds *= 1e3; unit = "ms"; }
+        char text[32];
+        const int decimals = seconds >= 100.0 ? 0 : seconds >= 10.0 ? 1 : 2;
+        std::snprintf(text, sizeof(text), "%.*f %s", decimals, seconds, unit);
+        return text;
+    }
+}
+
 struct ImGuiGUIEngine::Settings
 {
     CSimpleIniA ini;
@@ -769,18 +793,47 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
         }
 
         const auto posX = ImGui::GetCursorPosX();
-        // With a simulation thread, the frame rate says nothing about the simulation:
-        // its steps per second are shown too.
-        const bool showStepRate = showFPSInMenuBar && baseGUI->isAsynchronousSimulation();
-        const float fpsWidth = ImGui::CalcTextSize(showStepRate ? "1000.0 FPS | 100000 steps/s " : "1000.0 FPS ").x;
+        // The drawing speed, and the simulation's while it runs: with a simulation thread
+        // the frame rate says nothing about it, and a frame may take several steps.
+        char rateText[160];
+        // Where the steps run: in the simulation thread (async), or in the GUI thread,
+        // one per frame (sync).
+        const bool asyncSteps = baseGUI->isSimulationThreadStepping();
+        const char* mode = asyncSteps ? "async" : "sync";
+        // Until the first measure (half a second of steps), the frame rate alone.
+        const bool showStepRate = showFPSInMenuBar && m_sceneAnimate && baseGUI->getSecondsPerStep() > 0.0;
+        if (showStepRate)
+        {
+            const std::string stepRate = formatStepRate(baseGUI->getStepsPerSecond());
+            const std::string stepTime = formatDuration(baseGUI->getSecondsPerStep());
+            std::snprintf(rateText, sizeof(rateText), "%s | %.1f FPS | %s steps/s | %s/step",
+                          mode, io.Framerate, stepRate.c_str(), stepTime.c_str());
+        }
+        else
+            std::snprintf(rateText, sizeof(rateText), "%s | %.1f FPS", mode, io.Framerate);
+        // At least the width of usual values: the text does not move with every digit.
+        const float fpsWidth = std::max(ImGui::CalcTextSize(rateText).x,
+            ImGui::CalcTextSize(showStepRate ? "async | 100.0 FPS | 1000.0 steps/s | 100.0 ms/step" : "async | 100.0 FPS").x)
+            + ImGui::CalcTextSize(" ").x;
         if (showFPSInMenuBar)
         {
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetColumnWidth() - fpsWidth
                  - 2 * ImGui::GetStyle().ItemSpacing.x);
-            if (showStepRate)
-                ImGui::Text("%.1f FPS | %.0f steps/s", io.Framerate, baseGUI->getStepsPerSecond());
-            else
-                ImGui::Text("%.1f FPS", io.Framerate);
+            ImGui::TextUnformatted(rateText);
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::BeginTooltip();
+                ImGui::TextUnformatted(asyncSteps
+                    ? "async: the simulation steps in its own thread, the frames do not wait for it."
+                    : baseGUI->isAsynchronousSimulationRequested()
+                        ? "sync: the GUI thread steps, one step per frame (video recording, saved frames,\n"
+                          "or a scene whose parallel tasks only run from the GUI thread)."
+                        : "sync: the GUI thread steps, one step per frame. Settings > \"Simulation in its own thread\" for async.");
+                if (showStepRate)
+                    ImGui::TextUnformatted("Frames drawn per second | simulation steps per second | time spent in one step\n"
+                                           "(its computation, without the waits between steps).");
+                ImGui::EndTooltip();
+            }
             ImGui::SetCursorPosX(posX);
         }
         if (showTime)
