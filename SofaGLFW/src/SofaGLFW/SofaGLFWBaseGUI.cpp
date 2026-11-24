@@ -1003,6 +1003,11 @@ namespace
             if (auto* target = to.findData(data->getName()))
                 target->copyValueFrom(data);
         }
+        // The camera keeps the look-at point it last set besides its Data: when they
+        // differ, it takes the Data as a new look-at and rebuilds its orientation from it
+        // (BaseCamera::getOrientation), which loses the roll of a trackball rotation.
+        // A null translation makes them equal without touching the orientation.
+        to.translateLookAt(sofa::type::Vec3(0, 0, 0));
     }
 
     /// Changes when the camera moves: the counters of its pose's Data (not of what it
