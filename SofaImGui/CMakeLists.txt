@@ -151,7 +151,7 @@ set(HEADER_FILES
     ${SOFAIMGUI_SOURCE_DIR}/windows/Snapshot.h
     ${SOFAIMGUI_SOURCE_DIR}/AppIniFile.h
     ${SOFAIMGUI_SOURCE_DIR}/windows/WindowState.h
-    ${SOFAIMGUI_SOURCE_DIR}/windows/SceneBusy.h
+    ${SOFAIMGUI_SOURCE_DIR}/windows/FrozenWindows.h
     ${SOFAIMGUI_SOURCE_DIR}/guis/BaseAdditionalGUI.h
     ${SOFAIMGUI_SOURCE_DIR}/guis/AdditionalGUIRegistry.h
     ${SOFAIMGUI_SOURCE_DIR}/windows/ViewPort.h
@@ -187,7 +187,7 @@ set(SOURCE_FILES
     ${SOFAIMGUI_SOURCE_DIR}/windows/ViewPort.cpp
     ${SOFAIMGUI_SOURCE_DIR}/AppIniFile.cpp
     ${SOFAIMGUI_SOURCE_DIR}/windows/WindowState.cpp
-    ${SOFAIMGUI_SOURCE_DIR}/windows/SceneBusy.cpp
+    ${SOFAIMGUI_SOURCE_DIR}/windows/FrozenWindows.cpp
     ${SOFAIMGUI_SOURCE_DIR}/guis/AdditionalGUIRegistry.cpp
     ${SOFAIMGUI_SOURCE_DIR}/guis/BaseAdditionalGUI.cpp
     ${SOFAIMGUI_SOURCE_DIR}/render/ImGuiPlatformFactory.cpp

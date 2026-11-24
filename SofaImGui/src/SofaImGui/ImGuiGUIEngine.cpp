@@ -53,7 +53,7 @@
 #include "windows/Performances.h"
 #include "windows/Plugins.h"
 #include "windows/Profiler.h"
-#include "windows/SceneBusy.h"
+#include "windows/FrozenWindows.h"
 #include "windows/SceneGraph.h"
 #include "windows/Settings.h"
 #include "windows/ViewPort.h"
@@ -442,11 +442,10 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
 
     // During a long step of the simulation thread, frames go without the scene: what
     // reads it is drawn from values kept from the last frame that had it, its actions
-    // are deferred to the next one (runWithScene), and the panels showing it are
-    // replaced by a placeholder while the scene is busy (which implies unavailable
-    // frames, not necessarily this one: they would flicker otherwise).
+    // are deferred to the next one (runWithScene), and the panels showing it are drawn
+    // as they were in that frame (FrozenWindows). Input meant for those panels makes the
+    // frame wait for the scene (inputNeedsScene).
     const bool sceneAvailable = baseGUI->isSceneAvailable();
-    const bool scenePanels = !baseGUI->isSceneBusy();
     if (sceneAvailable && groot)
     {
         m_sceneAnimate = groot->animate_.getValue();
@@ -847,9 +846,13 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
                 - 2 * ImGui::GetStyle().ItemSpacing.x;
             if (showFPSInMenuBar)
                 position -= fpsWidth;
-            ImGui::SetCursorPosX(position);
-            ImGui::TextUnformatted(timeText);
-            ImGui::SetCursorPosX(posX);
+            // Not over the buttons when the window is narrow: the rates go first.
+            if (position >= posX + ImGui::GetStyle().ItemSpacing.x)
+            {
+                ImGui::SetCursorPosX(position);
+                ImGui::TextUnformatted(timeText);
+                ImGui::SetCursorPosX(posX);
+            }
         }
         mainMenuBarSize = ImGui::GetWindowSize();
         ImGui::EndMainMenuBar();
@@ -881,7 +884,10 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
      **************************************/
     windows::showViewPort(groot, windowNameViewport, settings->ini, m_platform.get(), m_viewportWindowSize,
                           isMouseOnViewport, winManagerViewPort, baseGUI,
-                          isViewportDisplayedForTheFirstTime, lastViewPortPos, scenePanels);
+                          isViewportDisplayedForTheFirstTime, lastViewPortPos,
+                          // Its gizmos read the scene's camera: hidden while the scene is
+                          // busy, rather than shown in some frames only.
+                          !baseGUI->isSceneBusy());
 
 
     /***************************************
@@ -893,16 +899,17 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Profiler window
      **************************************/
-    if (scenePanels)
+    if (sceneAvailable)
     {
         sofa::helper::AdvancedTimer::setEnabled("Animate", winManagerProfiler.getStatePtr());
         sofa::helper::AdvancedTimer::setInterval("Animate", 1);
         sofa::helper::AdvancedTimer::setOutputType("Animate", "gui");
 
         windows::showProfiler(groot, windowNameProfiler, winManagerProfiler);
+        m_frozenWindows.track(windowNameProfiler);
     }
     else
-        windows::showSceneBusyWindow(windowNameProfiler, winManagerProfiler);
+        m_frozenWindows.show(windowNameProfiler, winManagerProfiler);
 
     /***************************************
      * Scene graph window
@@ -913,12 +920,14 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     {
         clearComponentSelection(baseGUI);
         m_selectionRoot = groot.get();
+        m_frozenWindows.clear(); // they showed the previous scene
     }
-    if (scenePanels)
+    if (sceneAvailable)
     {
         windows::showSceneGraph(groot, windowNameSceneGraph, m_openedComponents,
                                 m_focusedComponents, m_currentSelection,
                                 winManagerSceneGraph, winManagerSelectionDescription);
+        m_frozenWindows.track(windowNameSceneGraph);
 
         std::set<core::objectmodel::Base::SPtr> currentSelectionV;
         for(auto component : m_currentSelection)
@@ -926,33 +935,42 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
         baseGUI->setCurrentSelection(currentSelectionV);
     }
     else
-        windows::showSceneBusyWindow(windowNameSceneGraph, winManagerSceneGraph);
+        m_frozenWindows.show(windowNameSceneGraph, winManagerSceneGraph);
 
     /***************************************
      * ShowSelection
      **************************************/
-    if (scenePanels)
+    if (sceneAvailable)
+    {
         windows::showSelection(groot, windowNameSelectionDescription, m_currentSelection, m_focusedComponents,
                                winManagerSelectionDescription);
+        m_frozenWindows.track(windowNameSelectionDescription);
+    }
     else
-        windows::showSceneBusyWindow(windowNameSelectionDescription, winManagerSelectionDescription);
+        m_frozenWindows.show(windowNameSelectionDescription, winManagerSelectionDescription);
 
     /***************************************
      * Display flags window
      **************************************/
-    if (scenePanels)
+    if (sceneAvailable)
+    {
         windows::showDisplayFlags(groot, windowNameDisplayFlags, winManagerDisplayFlags);
+        m_frozenWindows.track(windowNameDisplayFlags);
+    }
     else
-        windows::showSceneBusyWindow(windowNameDisplayFlags, winManagerDisplayFlags);
+        m_frozenWindows.show(windowNameDisplayFlags, winManagerDisplayFlags);
 
     /***************************************
      * Plugins window
      **************************************/
     // Loading a plugin runs its initialization, which may touch anything.
-    if (scenePanels)
+    if (sceneAvailable)
+    {
         windows::showPlugins(windowNamePlugins, winManagerPlugins);
+        m_frozenWindows.track(windowNamePlugins);
+    }
     else
-        windows::showSceneBusyWindow(windowNamePlugins, winManagerPlugins);
+        m_frozenWindows.show(windowNamePlugins, winManagerPlugins);
 
     /***************************************
      * Components window
@@ -963,34 +981,43 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
      * Log window
      **************************************/
     // The simulation thread adds its messages during the steps.
-    if (scenePanels)
+    if (sceneAvailable)
+    {
         windows::showLog(windowNameLog, settings->ini, winManagerLog);
+        m_frozenWindows.track(windowNameLog);
+    }
     else
-        windows::showSceneBusyWindow(windowNameLog, winManagerLog);
+        m_frozenWindows.show(windowNameLog, winManagerLog);
 
     /***************************************
      * Mouse window
      **************************************/
-    if (scenePanels)
+    if (sceneAvailable)
+    {
         windows::showManagerMouseWindow(windowNameMouse, winManagerMouse, baseGUI);
+        m_frozenWindows.track(windowNameMouse);
+    }
     else
-        windows::showSceneBusyWindow(windowNameMouse, winManagerMouse);
+        m_frozenWindows.show(windowNameMouse, winManagerMouse);
 
     /***************************************
      * Snapshot window
      **************************************/
-    if (scenePanels)
+    if (sceneAvailable)
+    {
         windows::showSnapshot(windowNameSnapshot, winManagerSnapshot, groot);
+        m_frozenWindows.track(windowNameSnapshot);
+    }
     else
-        windows::showSceneBusyWindow(windowNameSnapshot, winManagerSnapshot);
+        m_frozenWindows.show(windowNameSnapshot, winManagerSnapshot);
 
     /***************************************
      * Additional GUIs
      **************************************/
-    if (scenePanels)
-        sofaimgui::guis::showVisibleGUIs(groot, winManagerAdditionalGUIs);
+    if (sceneAvailable)
+        sofaimgui::guis::showVisibleGUIs(groot, winManagerAdditionalGUIs, &m_frozenWindows);
     else
-        sofaimgui::guis::showVisibleGUIsBusy(winManagerAdditionalGUIs);
+        sofaimgui::guis::showVisibleGUIsFrozen(winManagerAdditionalGUIs, m_frozenWindows);
 
     /***************************************
      * Settings window
@@ -1000,15 +1027,32 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
     /***************************************
      * Mapping Graph window
      **************************************/
-    if (scenePanels)
+    if (sceneAvailable)
+    {
         windows::showMappingGraphWindow(windowNameMappingGraph, settings->ini, winManagerMappingGraph, groot);
+        m_frozenWindows.track(windowNameMappingGraph);
+    }
     else
-        windows::showSceneBusyWindow(windowNameMappingGraph, winManagerMappingGraph);
+        m_frozenWindows.show(windowNameMappingGraph, winManagerMappingGraph);
     
     ImGui::Render();
 
+    // What the panels drew with the scene, for the frames that go without it.
+    if (sceneAvailable)
+    {
+        if (baseGUI->isAsynchronousSimulation())
+            m_frozenWindows.capture();
+        else
+            m_frozenWindows.clear();
+    }
+
     if (m_platform)
         m_platform->renderDrawData(ImGui::GetDrawData());
+}
+
+bool ImGuiGUIEngine::inputNeedsScene()
+{
+    return !isTerminated() && m_frozenWindows.wantsScene();
 }
 
 void ImGuiGUIEngine::presentFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)

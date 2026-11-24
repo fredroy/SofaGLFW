@@ -23,6 +23,7 @@
 
 #include <SofaImGui/config.h>
 #include <SofaImGui/windows/WindowState.h>
+#include <SofaImGui/windows/FrozenWindows.h>
 #include <sofa/simulation/Node.h>
 
 namespace sofaimgui::guis
@@ -47,10 +48,13 @@ public:
     void draw(sofa::core::sptr<sofa::simulation::Node> groot, windows::WindowState& winManager);
 
     /**
-     * @brief Draw the window with a placeholder, while the scene cannot be read
-     * (see SofaGLFWBaseGUI::isSceneBusy).
+     * @brief Draw the window as it was in the last frame that had the scene, in a frame
+     * without it (see windows::FrozenWindows).
      */
-    void drawSceneBusy(windows::WindowState& winManager);
+    void drawFrozen(windows::WindowState& winManager, windows::FrozenWindows& frozenWindows);
+
+    /// The title of the window: its icon and its name.
+    std::string getWindowLabel() const;
 
     /**
      * @brief Get the name of the window.

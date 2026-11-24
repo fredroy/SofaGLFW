@@ -31,6 +31,7 @@
 
 #include "guis/AdditionalGUIRegistry.h"
 #include "windows/WindowState.h"
+#include "windows/FrozenWindows.h"
 #include <sofa/gui/common/FilesRecentlyOpenedManager.h>
 
 using windows::WindowState;
@@ -63,6 +64,7 @@ public:
     void startFrame(sofaglfw::SofaGLFWBaseGUI*) override;
     void endFrame() override;
     bool drawsFramesWithoutScene() const override { return true; }
+    bool inputNeedsScene() override;
     bool beforeReplay(GLFWwindow* glfwWindow, sofaglfw::render::ViewportRect& viewport) override;
     void presentFrame(sofaglfw::SofaGLFWBaseGUI*) override;
     void beforeDraw(GLFWwindow* window) override;
@@ -142,6 +144,8 @@ protected:
 
     /// Kept from the last frame that had the scene, for those without it.
     bool m_sceneAnimate{false};
+    /// The panels reading the scene, for the frames without it (see startFrame).
+    windows::FrozenWindows m_frozenWindows;
     double m_sceneTime{0.0};
     /// Play/pause clicked in a frame without the scene, applied with the next one.
     std::optional<bool> m_requestedAnimate;

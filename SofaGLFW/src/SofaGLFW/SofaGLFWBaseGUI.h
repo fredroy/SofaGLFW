@@ -252,8 +252,9 @@ private:
     void updateSimulationThread(std::size_t targetNbIterations);
     void stopSimulationThread();
     /// The scene for this frame: waited for until a deadline, after which the frame
-    /// goes without it (a long step). Holds nothing without a simulation thread.
-    SimulationThread::SceneLock lockSceneForFrame();
+    /// goes without it (a long step), or until the step ends if @p waitForScene. Holds
+    /// nothing without a simulation thread.
+    SimulationThread::SceneLock lockSceneForFrame(bool waitForScene);
     /// Updates m_sceneAvailable and m_sceneBusy for a frame, and runs the deferred
     /// actions when the frame has the scene.
     void beginSceneFrame(bool sceneAvailable);
@@ -332,8 +333,8 @@ private:
     bool m_asyncUnsupportedReported{false};
     bool m_taskSchedulerLockstepReported{false};
     /// SOFA's task scheduler does not take tasks from the simulation thread (written by
-    /// it, read by the GUI thread, both with the scene lock).
-    bool m_simulationThreadRejected{false};
+    /// it, read by the GUI thread, also in frames without the scene: the menu bar's mode).
+    std::atomic<bool> m_simulationThreadRejected{false};
     std::unique_ptr<SimulationThread> m_simulationThread;
 
     bool m_sceneAvailable{true};

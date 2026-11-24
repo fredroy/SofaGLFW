@@ -75,7 +75,8 @@ void drawWindowMenuCheckboxes(std::map<std::string, windows::WindowState>& state
     }
 }
 
-void showVisibleGUIs(sofa::core::sptr<sofa::simulation::Node> groot, std::map<std::string, windows::WindowState>& states)
+void showVisibleGUIs(sofa::core::sptr<sofa::simulation::Node> groot, std::map<std::string, windows::WindowState>& states,
+                     windows::FrozenWindows* frozenWindows)
 {
     for (auto& gui : MainAdditionGUIRegistry::getAllGUIs())
     {
@@ -96,17 +97,19 @@ void showVisibleGUIs(sofa::core::sptr<sofa::simulation::Node> groot, std::map<st
         if (it != states.end())
         {
             gui->draw(groot, it->second);
+            if (frozenWindows)
+                frozenWindows->track(gui->getWindowLabel());
         }
     }
 }
 
-void showVisibleGUIsBusy(std::map<std::string, windows::WindowState>& states)
+void showVisibleGUIsFrozen(std::map<std::string, windows::WindowState>& states, windows::FrozenWindows& frozenWindows)
 {
     for (auto& gui : MainAdditionGUIRegistry::getAllGUIs())
     {
-        // A window shown for the first time while busy waits for the scene.
+        // A window shown for the first time during a step waits for the scene.
         if (auto it = states.find(gui->getWindowName()); it != states.end())
-            gui->drawSceneBusy(it->second);
+            gui->drawFrozen(it->second, frozenWindows);
     }
 }
 

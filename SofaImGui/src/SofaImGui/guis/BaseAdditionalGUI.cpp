@@ -22,7 +22,6 @@
 #include <SofaImGui/guis/BaseAdditionalGUI.h>
 #include <imgui.h>
 #include <IconsFontAwesome6.h>
-#include <SofaImGui/windows/SceneBusy.h>
 
 namespace sofaimgui::guis {
 
@@ -30,7 +29,7 @@ void BaseAdditionalGUI::draw(sofa::core::sptr<sofa::simulation::Node> groot, win
 {
     if (*winManager.getStatePtr())
     {
-        const auto label = getWindowIcon() + "  " + getWindowName();
+        const auto label = getWindowLabel();
         if (ImGui::Begin(label.c_str(), winManager.getStatePtr()))
         {
             this->doDraw(groot);
@@ -38,10 +37,14 @@ void BaseAdditionalGUI::draw(sofa::core::sptr<sofa::simulation::Node> groot, win
         ImGui::End();
     }
 }
-void BaseAdditionalGUI::drawSceneBusy(windows::WindowState& winManager)
+void BaseAdditionalGUI::drawFrozen(windows::WindowState& winManager, windows::FrozenWindows& frozenWindows)
 {
-    const auto label = getWindowIcon() + "  " + getWindowName();
-    windows::showSceneBusyWindow(label.c_str(), winManager);
+    frozenWindows.show(getWindowLabel().c_str(), winManager);
+}
+
+std::string BaseAdditionalGUI::getWindowLabel() const
+{
+    return getWindowIcon() + "  " + getWindowName();
 }
 
 std::string BaseAdditionalGUI::getWindowIcon() const

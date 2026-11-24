@@ -644,18 +644,21 @@ std::size_t SofaGLFWBaseGUI::runLoop(std::size_t targetNbIterations)
         std::size_t nbFramesToPresent = 0;
         bool paceFrames = false;
         {
-            // Everything that reads or writes the scene: the event callbacks, the step
+            // The events first, without the scene (with a simulation thread): what they
+            // do to it is deferred (runWithScene) to the frame's beginning below, if it
+            // has the scene; the camera moves go to the GUI's own camera. Input meant for
+            // a panel that needs the scene makes the frame wait for it.
+            glfwPollEvents();
+            const bool waitForScene = m_simulationThread && m_guiEngine && m_guiEngine->inputNeedsScene();
+
+            // Everything that reads or writes the scene: the deferred events, the step
             // when this thread does it, the scene draw and the GUI panels. A simulation
             // thread waits between two steps meanwhile. If its step lasts, the frame goes
             // without the scene: events and GUI actions are deferred to the next frame
             // that has it, and the GUI engine draws what does not need the scene.
-            auto sceneLock = lockSceneForFrame();
+            auto sceneLock = lockSceneForFrame(waitForScene);
             const bool sceneAvailable = sceneLock.ownsScene();
-            beginSceneFrame(sceneAvailable);
-
-            glfwPollEvents();
-            if (sceneAvailable)
-                pushInteractionCamera(); // this frame's moves, for its scene draw
+            beginSceneFrame(sceneAvailable); // pushes this frame's camera moves, for its scene draw
 
             if (!sceneAvailable)
                 paceFrames = !isVsync(); // only a stepping simulation thread holds the scene
@@ -982,10 +985,12 @@ namespace
     constexpr int framesWithSceneToLeaveBusy = 30;
 }
 
-SimulationThread::SceneLock SofaGLFWBaseGUI::lockSceneForFrame()
+SimulationThread::SceneLock SofaGLFWBaseGUI::lockSceneForFrame(bool waitForScene)
 {
     if (!m_simulationThread)
         return SimulationThread::SceneLock{};
+    if (waitForScene)
+        return m_simulationThread->lockScene();
 
     const auto now = SimulationThread::Clock::now();
     const auto deadline = m_sceneBusy

@@ -54,6 +54,10 @@ public:
     /// are then called without beforeDraw/afterDraw and the scene draw. Otherwise, no
     /// frame is drawn meanwhile, and the window keeps showing the last one.
     virtual bool drawsFramesWithoutScene() const { return false; }
+    /// Before a frame, with the events polled: whether the input not yet processed is
+    /// meant for what the engine can only handle with the scene (a panel reading it). The
+    /// frame then waits for the step in progress instead of going without the scene.
+    virtual bool inputNeedsScene() { return false; }
     virtual void beforeDraw(GLFWwindow* window) = 0;
     /// beforeDraw() for a frame that draws the scene again from recorded draw calls
     /// (SofaGLFWWindow::replay), without the scene: must not touch it, nor the visual
