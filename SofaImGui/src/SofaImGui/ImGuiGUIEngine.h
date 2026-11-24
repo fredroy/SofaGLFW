@@ -149,6 +149,10 @@ protected:
     windows::FrozenWindows m_frozenWindows;
     /// What the Log window shows (see windows::LogMessages).
     windows::LogMessages m_logMessages;
+    /// The size the scene target was last rendered at (window units), and whether the
+    /// viewport has shown it yet (see windows::showViewPort).
+    std::pair<int, int> m_sceneTargetSize{0, 0};
+    bool m_sceneImageShown{false};
     double m_sceneTime{0.0};
     /// Play/pause clicked in a frame without the scene, applied with the next one.
     std::optional<bool> m_requestedAnimate;

@@ -887,7 +887,7 @@ void ImGuiGUIEngine::startFrame(sofaglfw::SofaGLFWBaseGUI* baseGUI)
                           isViewportDisplayedForTheFirstTime, lastViewPortPos,
                           // Its gizmos read the scene's camera: hidden while the scene is
                           // busy, rather than shown in some frames only.
-                          !baseGUI->isSceneBusy());
+                          !baseGUI->isSceneBusy(), &m_sceneTargetSize, &m_sceneImageShown);
 
 
     /***************************************
@@ -1213,6 +1213,7 @@ void ImGuiGUIEngine::beforeDraw(GLFWwindow* glfwWindow)
 
     if (m_platform)
         m_platform->beginSceneTarget(logicalW, logicalH, m_sceneMsaa);
+    m_sceneTargetSize = { logicalW, logicalH };
 
     // The scene viewport is in window units too; the bgfx scene renderer applies
     // the framebuffer scale.
@@ -1230,6 +1231,7 @@ bool ImGuiGUIEngine::beforeReplay(GLFWwindow* glfwWindow, sofaglfw::render::View
     const int logicalW = std::max(1, static_cast<int>(m_viewportWindowSize.first));
     const int logicalH = std::max(1, static_cast<int>(m_viewportWindowSize.second));
     m_platform->beginSceneTarget(logicalW, logicalH, m_sceneMsaa);
+    m_sceneTargetSize = { logicalW, logicalH };
     viewport = { 0, 0, logicalW, logicalH };
     return true;
 }

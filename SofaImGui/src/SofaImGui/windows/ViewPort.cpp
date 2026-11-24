@@ -39,6 +39,8 @@
 #include <sofa/component/visual/BaseCamera.h>
 #include <sofa/core/visual/VisualParams.h>
 
+#include <algorithm>
+
 #include <iomanip>
 namespace windows
 {
@@ -53,7 +55,9 @@ namespace windows
                       sofaglfw::SofaGLFWBaseGUI* baseGUI,
                       bool& isViewportDisplayedForTheFirstTime,
                       sofa::type::Vec2f& lastViewPortPos,
-                      bool sceneAvailable)
+                      bool sceneAvailable,
+                      const std::pair<int, int>* sceneTargetSize,
+                      bool* sceneImageShown)
     {
         if (*winManagerViewPort.getStatePtr())
         {
@@ -96,7 +100,17 @@ namespace windows
                     lastViewPortPos.y() = viewportPos.y;
                 }
 
-                if (platform && platform->hasSceneTexture())
+                // At startup, the scene target is rendered at the size the window had in the
+                // previous frame, before its layout is settled: stretched, it would flash
+                // (a single red pixel of a scene filling the view). Shown once it was rendered
+                // at the window's size, then always (a resize stretches it for one frame).
+                if (sceneImageShown && !*sceneImageShown && sceneTargetSize
+                    && sceneTargetSize->first == std::max(1, static_cast<int>(wsize.x))
+                    && sceneTargetSize->second == std::max(1, static_cast<int>(wsize.y)))
+                    *sceneImageShown = true;
+                const bool showSceneImage = !sceneImageShown || *sceneImageShown;
+
+                if (platform && platform->hasSceneTexture() && showSceneImage)
                 {
                     const ImTextureID sceneTex = platform->sceneTexture();
                     // Flip vertically for bottom-up textures (OpenGL FBO).

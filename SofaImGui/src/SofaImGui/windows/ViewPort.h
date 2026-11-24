@@ -53,6 +53,10 @@ namespace windows
          * @param sceneAvailable Whether the scene may be read (see SofaGLFWBaseGUI::isSceneBusy):
          *        otherwise, only the last scene image is shown, without the gizmos and the
          *        settings changing the scene.
+         * @param sceneTargetSize The size, in window units, the scene was last rendered at.
+         * @param sceneImageShown Whether the scene image was shown yet: not before it was
+         *        rendered at the size of the window (the first frames, before the layout
+         *        is settled, would stretch a target of another size). Set by the call.
          */
         void showViewPort(sofa::core::sptr<sofa::simulation::Node> groot,
                           const char* const& windowNameViewport,
@@ -64,7 +68,9 @@ namespace windows
                           sofaglfw::SofaGLFWBaseGUI* baseGUI,
                           bool& isViewportDisplayedForTheFirstTime,
                           sofa::type::Vec2f& lastViewPortPos,
-                          bool sceneAvailable = true);
+                          bool sceneAvailable = true,
+                          const std::pair<int, int>* sceneTargetSize = nullptr,
+                          bool* sceneImageShown = nullptr);
 
         /**
          * @brief Checks if the viewport position has moved beyond a specified threshold.
